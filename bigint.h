@@ -912,12 +912,15 @@ bigint sqr_mod(bigint number,const bigint& mod){
     number=(number*number)%mod;
     return number;
 }
-
+bigint abs(bigint a){
+    a.sign=1;
+    return a;
+}
 
 double to_double(bigint a){
     if(a.isZero()){return 0.0;}
     int i=a.digits.size()-1;
-    double ans;
+    double ans=0;
     while(i>=0){
         ans*=1000000000.0;
         ans+=(double)a.digits[i];

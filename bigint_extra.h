@@ -148,7 +148,7 @@ void sieve_mil(){
    }
    prime_bound=1000000;
    primes.reserve(80000);
-   int hub_size=10000;
+   const int hub_size=10000;
     char temp[hub_size]={};
     for(int i=1;i<25;i++){
       int start=1000%primes[i];
@@ -207,7 +207,7 @@ void sieve_int(){
       }
    }
    //power of 2
-   long long hub_size=16384;
+   const long long hub_size=16384;
 
    for(long long i=0;i<2147483648/hub_size;i++){
       char temp[hub_size]={};
