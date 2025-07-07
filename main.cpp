@@ -11,7 +11,11 @@
 
 bool primes_int_initialised = false;
 std::string CURRENT_VERSION = "30.06.2025";
-std::string HELLO_MESS = "Console calculator\nTo get help type help \nTo use basic integer functions -- stay here\nTo enter evaluation mode -- use [eval]or[e]\n";
+std::string HELLO_MESS = 
+"Console calculator\n"
+"To get help type [help] or [h] \n"
+"To use basic integer functions -- stay here\n"
+"To enter evaluation mode -- use [eval] or [e]\n";
 
 void print_factor(bigint a)
 {

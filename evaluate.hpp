@@ -519,25 +519,26 @@ namespace evl
         return stk.top();
     }
 
-    double evaluate_double(const std::string &expression)
+    double evaluate_double_expression(const std::string &expression)
     {
         auto tokens = tokenize(expression);
         auto postfix = toPostfix(tokens);
         return evalPostfix_double(postfix);
     }
 
-    bigint evaluate_bigint(const std::string &expression)
+    bigint evaluate_bigint_expression(const std::string &expression)
     {
         auto tokens = tokenize(expression);
         auto postfix = toPostfix(tokens);
         return evalPostfix_bigint(postfix);
     }
 
-    // Evaluates a string, recognises [mode:] notation, adds brackets
+    // Evaluates a string, recognises colon [mode:] notation, adds brackets
+    // Temporary function. Should move this to tokenizer and add support of double functions recognition
     EvalVersion Analize_fix(std::string &input)
     {
-        bool doubledot_command = false;
-        char doubledot_char;
+        bool colon_command = false;
+        char colon_char;
         if (input.length() == 2)
         {
             if (input == "d:")
@@ -551,9 +552,9 @@ namespace evl
         }
         if (input.length() > 2 && input[1] == ':')
         {
-            doubledot_char = input[0];
+            colon_char = input[0];
             input.erase(0, 2);
-            doubledot_command = true;
+            colon_command = true;
         }
         bool has_double_triggers = false;
         bool has_int_triggers = false;
@@ -584,6 +585,7 @@ namespace evl
                 has_int_triggers = true;
             }
         }
+        //trying to fix brackets just by adding from left or right
         if (bracket_index > 0)
         {
             while (bracket_index)
@@ -603,9 +605,10 @@ namespace evl
             }
             input = temp + input;
         }
-        if (doubledot_command)
+        //returning colon_mode command
+        if (colon_command)
         {
-            switch (doubledot_char)
+            switch (colon_char)
             {
             case 'd':
                 return DOUBLE;
@@ -729,7 +732,7 @@ namespace evl
             {
                 try
                 {   
-                    DOUBLE_ANS=evl::evaluate_double(text_input);
+                    DOUBLE_ANS=evl::evaluate_double_expression(text_input);
                     std::cout << DOUBLE_ANS << "\n";
                 }
                 catch (const std::exception &e)
@@ -743,12 +746,12 @@ namespace evl
                 {
                     if (bigint_aproximate == true)
                     {
-                        BIGINT_ANS=evl::evaluate_bigint(text_input);
+                        BIGINT_ANS=evl::evaluate_bigint_expression(text_input);
                         std::cout << aproximation_print(BIGINT_ANS) << "\n";
                     }
                     else
                     {
-                        BIGINT_ANS=evl::evaluate_bigint(text_input);
+                        BIGINT_ANS=evl::evaluate_bigint_expression(text_input);
                         std::cout << BIGINT_ANS << "\n";
                     }
                 }
