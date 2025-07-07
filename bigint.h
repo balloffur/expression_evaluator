@@ -930,3 +930,52 @@ double to_double(bigint a){
     return ans;
 }
 
+
+
+//converts bigint into double-like notation
+std::pair<double,int> aproximation(const bigint& a){
+    if(a.isZero()){return std::make_pair((double)0,int(0));}
+	double mantis;
+	int exponent;
+	if(a.digits.size()==1){
+		mantis=double(a.digits.back());
+		exponent=0;
+	} else {
+		mantis=double(a.digits.back())*1000000000.0+a.digits[a.digits.size()-2];
+		exponent=a.digits.size()*9-18;
+	}
+        while(mantis>=10.0){
+            mantis/=10.0;
+            exponent++;
+        }
+        if(a.isNegative()){mantis=-mantis;}
+        return std::make_pair(mantis,exponent);
+}    
+
+std::string aproximation_print(const bigint& a){
+    if(a.isZero()){return "0";}
+		double mantis;
+		int exponent;
+		if(a.digits.size()==1){mantis=double(a.digits.back()); exponent=0;}else{
+        mantis=double(a.digits.back())*1000000000.0+a.digits[a.digits.size()-2];
+        exponent=a.digits.size()*9-18;
+		}
+        while(mantis>=10.0){
+            mantis/=10.0;
+            exponent++;
+        }
+        std::string ans;
+        if(a.isNegative()){ans="-";}
+        ans+=std::to_string(mantis);
+        while (ans.back()=='0')
+        {
+            ans.pop_back();
+        }
+        if(ans.back()=='.'){
+            ans.pop_back();
+        }
+        if(exponent>0){
+        ans+="*10^"+std::to_string(exponent);
+        }
+        return ans;
+}

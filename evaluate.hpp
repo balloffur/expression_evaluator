@@ -23,17 +23,20 @@ namespace evl
         ERROR
     };
     enum TokenType
-    {
+    {   
         NUMBER,
         OPERATOR,
         FUNCTION,
-        PARENTHESIS
+        PARENTHESIS,
+        PREV
     };
     // Можно добавить константы
     std::map<std::string, std::string> constants_math = {{"pi", "3.141592653589793"}, {"e", "2.718281828459045"}, {"phi", "1.618033988749895"}};
     std::map<std::string, std::string> physic_constants = {{"с", " 2.99792458e8"}};
     static bool TIME_TESTING = false;
     static bool TRIG_MODE_DEG = false;
+    static double DOUBLE_ANS=0;
+    bigint BIGINT_ANS=0;
     const double DEG_TO_RAD = 0.01745329251994329576923690768488612713412398;
 
     struct Token
@@ -86,6 +89,9 @@ namespace evl
                 func += ch;
                 while (i + 1 < expr.size() && isalpha(expr[i + 1]))
                     func += expr[++i];
+                if(func=="ans"){
+                    tokens.push_back({PREV,""});
+                } else 
                 if (constants_math.find(func) != constants_math.end())
                 {
                     tokens.push_back({NUMBER, constants_math[func]});
@@ -443,7 +449,22 @@ namespace evl
                 else
                 {
                     // бинарные функции
-                    if (token.value == "powmod")
+                    if (token.value == "C")
+                    {
+                        bigint a = stk.top();
+                        stk.pop();
+                        bigint b = stk.top();
+                        stk.pop();
+                        if (a >= b)
+                        {
+                            stk.push(binomial(a, b));
+                        }
+                        else
+                        {
+                            stk.push(binomial(b, a));
+                        }
+                    }
+                    else if (token.value == "powmod")
                     {
                         bigint a = stk.top();
                         stk.pop();
@@ -480,6 +501,8 @@ namespace evl
                             stk.push(sqrt(a));
                         else if (token.value == "abs")
                             stk.push(abs(a));
+                        else if (token.value == "fib")
+                            stk.push(fibonacci(a));
                         else
                             throw std::runtime_error("Unknowm function " + token.value);
                     }
@@ -513,7 +536,7 @@ namespace evl
     // Evaluates a string, recognises [mode:] notation, adds brackets
     EvalVersion Analize_fix(std::string &input)
     {
-        bool doubledot_command=false;
+        bool doubledot_command = false;
         char doubledot_char;
         if (input.length() == 2)
         {
@@ -530,7 +553,7 @@ namespace evl
         {
             doubledot_char = input[0];
             input.erase(0, 2);
-            doubledot_command=true;
+            doubledot_command = true;
         }
         bool has_double_triggers = false;
         bool has_int_triggers = false;
@@ -580,7 +603,8 @@ namespace evl
             }
             input = temp + input;
         }
-        if(doubledot_command){
+        if (doubledot_command)
+        {
             switch (doubledot_char)
             {
             case 'd':
@@ -614,6 +638,7 @@ namespace evl
         std::cout << "Evaluation mode. To change trigonometric functions mode use [rad] and [deg]\n\n";
         bool eval_state = true;
         bool double_eval = false;
+        bool bigint_aproximate = false;
         std::string text_input;
         EvalVersion eval_version = COMMAND;
         while (eval_state)
@@ -642,6 +667,7 @@ namespace evl
                     std::cout << "help -- help \ndeg/rad -- switch trig mode \nclear/c -- clear screen \n";
                     std::cout << "quit -- quit\n";
                     std::cout << "trig -- show trig mode\n";
+                    std::cout << "aprox/exact -- presentation mode for bigint calculations\n";
                     std::cout << "You can enter calculations as is \nIf you want to specify, you can use [d:] for double and [i:] for integer\n\n";
                     std::cout << "Trigonometry mode : " << (TRIG_MODE_DEG ? "degrees" : "radian") << "\n";
                     continue;
@@ -666,6 +692,16 @@ namespace evl
                     evl::TRIG_MODE_DEG = false;
                     continue;
                 }
+                if (text_input == "aprox" || text_input == "aproximate")
+                {
+                    bigint_aproximate = true;
+                    continue;
+                }
+                if (text_input == "exact")
+                {
+                    bigint_aproximate = false;
+                    continue;
+                }
                 if (text_input == "clear" || text_input == "c")
                 {
                     system("cls");
@@ -676,6 +712,10 @@ namespace evl
                     if (double_eval)
                     {
                         std::cout << "Evaluating as double\n";
+                    }
+                    if (bigint_aproximate)
+                    {
+                        std::cout << "Aproximating bigint output\n";
                     }
                     continue;
                 }
@@ -688,8 +728,9 @@ namespace evl
             else if (eval_version == DOUBLE)
             {
                 try
-                {
-                    std::cout << evl::evaluate_double(text_input) << "\n";
+                {   
+                    DOUBLE_ANS=evl::evaluate_double(text_input);
+                    std::cout << DOUBLE_ANS << "\n";
                 }
                 catch (const std::exception &e)
                 {
@@ -700,7 +741,16 @@ namespace evl
             {
                 try
                 {
-                    std::cout << evl::evaluate_bigint(text_input) << "\n";
+                    if (bigint_aproximate == true)
+                    {
+                        BIGINT_ANS=evl::evaluate_bigint(text_input);
+                        std::cout << aproximation_print(BIGINT_ANS) << "\n";
+                    }
+                    else
+                    {
+                        BIGINT_ANS=evl::evaluate_bigint(text_input);
+                        std::cout << BIGINT_ANS << "\n";
+                    }
                 }
                 catch (const std::exception &e)
                 {

@@ -332,7 +332,7 @@ while(rounds){
 return true;
 }
 
-//MillerRabbin for bigint, default numbers preset of rounds
+//MillerRabbin for bigint, default numbers preset of rounds (2,3,5, n/2, n/4, 5 randoms) ~ 99,99999% precision
 bool MillerRabbin(const bigint& n){
 	if(n==2){return true;}
 	if(n.even()){return false;}
@@ -534,6 +534,15 @@ namespace {
 		return ans;
 	}
 	
+	bigint binomial(bigint n,bigint k){
+		if(n-k<k){k=n-k;}
+		bigint ans=1;
+		for(bigint i=1;i<=k;i++){
+			ans*=(n-i+1);
+			ans/=i;
+		}
+		return ans;
+	}
 	//partial permutations
 	bigint partperm(int n,int k){
 		bigint ans=1;
@@ -573,5 +582,40 @@ namespace {
 		}
 		return b;
 	}
+
+	//fibonacci numbers for bigint. Takes last 9 digits of a number
+	bigint fibonacci(bigint number){
+		if(number.isNegative()){return bigint(-1);}
+		if(number.isZero()){return bigint(0);}
+		int n=number.digits[0];
+		if(n<0){return bigint(-1);}
+		int small_fibs[]={0,1,1,2,3,5,8,13,21,34,55};
+		if(n<=10){
+			return bigint(small_fibs[n]);
+		}
+		std::vector<char> digits;
+		while(n){
+			digits.push_back(n%2);
+			n/=2;
+		}
+		bigint a=1;
+		bigint b=1;
+		bigint c=0;
+		for(int i=digits.size()-2;i>=0;i--){
+			a*=a;
+			b*=b;
+			c*=c;
+			a+=b;
+			c+=b;
+			b=a-c;
+			if(digits[i]){
+				c=b;
+				b=a;
+				a+=c;
+			}
+		}
+		return b;
+	}
+
 }
 

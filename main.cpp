@@ -11,7 +11,7 @@
 
 bool primes_int_initialised = false;
 std::string CURRENT_VERSION = "30.06.2025";
-std::string HELLO_MESS = "Hello! This is my calculator. To get help type help \n";
+std::string HELLO_MESS = "Console calculator\nTo get help type help \nTo use basic integer functions -- stay here\nTo enter evaluation mode -- use [eval]or[e]\n";
 
 void print_factor(bigint a)
 {
@@ -176,6 +176,7 @@ enum actions
     dectohex,
     bintodec,
     dectobin,
+    APROX,
     gcdall,
     demoprimes,
     demofib,
@@ -195,6 +196,7 @@ std::map<std::string, actions> what_to_do{
 {"dectobin", dectobin}, {"hextodec", hextodec}, {"hextobin", hextobin}, {"base", base_to_base},
 {"pi", count_primes_before}, {"pow", to_pow_bigint}, {"sod", sum_of_digits}, {"bin", bin},
 {"binomial", bin}, {"gcd", GCD}, {"factorial", factorl}, {"factor", factor}, {"q", quit},
+{"aprox",APROX},
 {"h", help}, {"help", help}, {"is", skip}, {"quit", quit}, {"leave", quit},
 {"clear", clear}, {"c", clear}, {"prime?", is_prime}, {"prime", is_prime},
 {"rbp", random_big_prime}, {"rsp", random_small_prime}, {"pn", nthprime},{"init", init}};
@@ -211,7 +213,7 @@ void print_help()
     std::cout << "pn -- prime number [n] \n";
     std::cout << "pi -- how many primes before [n]. Gotta init for [n]>1000000 \n";
     std::cout << "prime -- tells if a number is prime \n";
-    std::cout << "primes -- first [n] primes";
+    std::cout << "primes -- first [n] primes\n";
     std::cout << "factor -- factorisation\n";
     std::cout << "gcd -- finds gcd of 2 large number [a] [b]\n";
     std::cout << "egcd -- extended gcd [a] [b]\n";
@@ -327,6 +329,10 @@ again:
             primes_int_initialised = true;
             std::cout << "found!\n";
             break;
+        case APROX:
+            std::cout<<aproximation_print(current_number)<<"\n";
+            break;
+        
         case factor:
             std::cin >> current_number;
             print_factor(current_number);

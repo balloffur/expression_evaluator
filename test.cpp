@@ -1,10 +1,11 @@
-#include "expressions.h"
-using namespace expressions;
-#include "timing.hpp"
+#include "bigint.h"
+#include "evaluate.hpp"
 
-int main()
-{
-    std::string test_expr="13())(7.9";
-    test_print_tokens(tokenize(test_expr));
-    return 0;    
+
+int main(){
+    bigint a("-1");
+    bigint b(-1);
+    bigint c(0);
+    bigint d((double)-1000);
+    std::cout<<a.isNegative()<<" "<<b.isNegative()<<" "<<c.isNegative()<<" "<<d.isNegative()<<"\n";    
 }
