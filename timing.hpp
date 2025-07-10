@@ -10,7 +10,7 @@ void time(){
         end=std::chrono::steady_clock::now();
         std::cout<<"Execution time:\n";
         std::cout<<std::chrono::duration_cast<std::chrono::milliseconds>(end-begin).count()<<"ms\n";
-        std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count()<<"mсs\n";
+        std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count()<<"mcs\n";
         std::cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count()<<"ns\n";
         is_timing=false;
     }
@@ -36,7 +36,7 @@ class time_label{
         number_of_iterations++;
         std::cout<<"Execution time:\n";
         std::cout<<std::chrono::duration_cast<std::chrono::milliseconds>(temp_begin-temp_end).count()<<"ms\n";
-        std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(temp_begin-temp_end).count()<<"mсs\n";
+        std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(temp_begin-temp_end).count()<<"mcs\n";
         std::cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(temp_begin-temp_end).count()<<"ns\n";
         temp_begin=std::chrono::steady_clock::now();
     }
@@ -48,7 +48,7 @@ class time_label{
         temp_begin=std::chrono::steady_clock::now();
         std::cout<<"Avarage time over "<<number_of_iterations<<" iterations:\n";
         std::cout<<std::chrono::duration_cast<std::chrono::milliseconds>((temp_begin-global_begin)/number_of_iterations).count()<<"ms\n";
-        std::cout<<std::chrono::duration_cast<std::chrono::microseconds>((temp_begin-global_begin)/number_of_iterations).count()<<"mсs\n";
+        std::cout<<std::chrono::duration_cast<std::chrono::microseconds>((temp_begin-global_begin)/number_of_iterations).count()<<"mcs\n";
         std::cout<<std::chrono::duration_cast<std::chrono::nanoseconds>((temp_begin-global_begin)/number_of_iterations).count()<<"ns\n";
 
         temp_begin=std::chrono::steady_clock::now();

@@ -188,7 +188,8 @@ enum actions
     primorial,
     EGCD,
     MODULAR_INVERSE,
-    EVAL
+    EVAL,
+    CLEAR_VARS
 };
 
 // Maps actions to strings
@@ -200,7 +201,7 @@ std::map<std::string, actions> what_to_do{
 {"dectobin", dectobin}, {"hextodec", hextodec}, {"hextobin", hextobin}, {"base", base_to_base},
 {"pi", count_primes_before}, {"pow", to_pow_bigint}, {"sod", sum_of_digits}, {"bin", bin},
 {"binomial", bin}, {"gcd", GCD}, {"factorial", factorl}, {"factor", factor}, {"q", quit},
-{"aprox",APROX},
+{"aprox",APROX}, {"clearvars", CLEAR_VARS},
 {"h", help}, {"help", help}, {"is", skip}, {"quit", quit}, {"leave", quit},
 {"clear", clear}, {"c", clear}, {"prime?", is_prime}, {"prime", is_prime},
 {"rbp", random_big_prime}, {"rsp", random_small_prime}, {"pn", nthprime},{"init", init}};
@@ -238,6 +239,7 @@ void print_help()
 
     // eval
     std::cout << "eval -- (testing) enter a comprehansive evaluation mode.\nCan evaluate both big integers and doubles. \nFor a simple int calculator just write stuff\n";
+    std::cout << "clearvars -- clear all variables from evaluation mode\n";
 }
 
 int main()

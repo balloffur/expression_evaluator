@@ -10,6 +10,11 @@
 #include <complex>
 #include <bitset>
 
+
+// Easy optimisations are marked with !!
+
+
+
 static const int BASE_DIGITS = 9;
 static const int BASE = 1000000000;
 static const long long BASE_L = 1000000000;
@@ -17,7 +22,7 @@ static const double PI =  3.14159265358979323846;
 static const long long powers_of_2[30] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288,1048576, 2097152, 4194304, 8388608, 16777216, 33554432, 67108864, 134217728, 268435456, 536870912};
 static const long long powers_of_10[]={1,10,100,1000,10000,100000,1000000,10000000,100000000,1000000000};
 // lg(ab)<SIMPLE_MULT_BORDER -->switch to FFT_mult
-static const int SIMPLE_MULT_BORDER=10000;
+static const int SIMPLE_MULT_BORDER=1000;
 // lg(a)>FFT_BORDER || lg(b)>FFT_BORDER. To avoid loss of precision from fft for very large numbers --> switch to karatsuba. Probably rather use gmp.
 static const int FFT_BORDER=1000000;
 
@@ -192,7 +197,7 @@ struct bigint {
         return *this;
     }
 
-    // Optimize operators + and - according to
+    // Optimize operators + and - according to move semantics
     // https://stackoverflow.com/questions/13166079/move-semantics-and-pass-by-rvalue-reference-in-overloaded-arithmetic
     template< typename L, typename R >
         typename std::enable_if<
@@ -224,6 +229,7 @@ struct bigint {
         result -= r;
         return result;
     }
+
 
     // -------------------- Operators * / % --------------------
     friend std::pair<bigint, bigint> divmod(const bigint& a1, const bigint& b1) {
@@ -306,6 +312,7 @@ struct bigint {
     }
 
     long long operator%(long long v) const {
+        if(BASE%v==0){return (digits.size()==0?0:(digits[0]%v)*sign);}
         int m = 0;
         for (int i = digits.size() - 1; i >= 0; --i)
             m = (digits[i] + m * (long long) BASE) % v;
@@ -315,10 +322,14 @@ struct bigint {
     void operator*=(int v) {
         if (llabs(v) >= BASE) {
             *this *= bigint(v);
-            return ;
+            return;
         }
+        if(v==0){*this=0;return;}
         if (v < 0)
             sign = -sign, v = -v;
+        if(v==1){
+            return;
+        }
         for (int i = 0, carry = 0; i < (int) digits.size() || carry; ++i) {
             if (i == (int) digits.size())
                 digits.push_back(0);
@@ -516,6 +527,7 @@ struct bigint {
     void operator*=(const bigint &v) {
         *this = *this * v;
     }
+
     bigint operator*(const bigint &v) const {
         if (digits.size() * v.digits.size() <= SIMPLE_MULT_BORDER) return mul_simple(v);
         if (digits.size() < FFT_BORDER || v.digits.size() < FFT_BORDER) return mul_fft(v);
@@ -608,6 +620,13 @@ struct bigint {
         return (isZero() || digits[0]%2==0);
     }
     
+    
+    // Trash
+    int at(int n) const{
+        if(n>9*digits.size() || n<0){return 0;}
+        return ((digits[n/9]/powers_of_10[n%9])%10);
+    }
+
     int number_of_digits() const {
         int ans=(digits.size()-1)*9;
         if(digits.back()>99999999){
@@ -632,20 +651,18 @@ struct bigint {
     }
 
     std::string to_string() const {
-        if(isZero()){return "0";}
-        std::string ans;
-        if (sign==-1){ans="-";}
-        ans+=std::to_string(digits.back());
-        std::string temp;
-        for(int i=digits.size()-2;i>=0;i--){
-            temp=std::to_string(digits[i]);
-            for(int j=0;j<9-temp.size();j++){
-                ans+='0';
-            }
-            ans+=temp;
-        }   
-        return ans;
+    if (isZero()) return "0";
+    std::string ans;
+    ans.reserve(digits.size() * 9 + 2); // Reserve space for digits + sign
+    if (sign == -1) ans += "-";
+    ans += std::to_string(digits.back());
+    char buf[10];
+    for (int i = digits.size() - 2; i >= 0; --i) {
+        snprintf(buf, 10, "%09d", digits[i]);
+        ans += buf;
     }
+    return ans;
+}
 
     bigint& operator++(){
         if(isZero()){*this=1;} else 
@@ -774,6 +791,7 @@ struct bigint {
 
     bigint& to_pow(int n){
         bigint temp=*this;
+        temp.digits.reserve((digits.size()+1)*n);
         *this=1;
         while(n){
             if(n&1){
@@ -796,11 +814,6 @@ struct bigint {
             n>>=1;
         }
         return *this;
-    }
-
-    int operator[](int n) const{
-        if(n>9*digits.size() || n<0){return 0;}
-        return ((digits[n/9]/powers_of_10[n%9])%10);
     }
 
     bigint& sqr_mod(const bigint& mod){
@@ -861,6 +874,8 @@ struct bigint {
         }
         return ans;
     }
+    
+ 
 };
 
 
@@ -975,7 +990,7 @@ std::string aproximation_print(const bigint& a){
             ans.pop_back();
         }
         if(exponent>0){
-        ans+="*10^"+std::to_string(exponent);
+        ans+="*e"+std::to_string(exponent);
         }
         return ans;
 }

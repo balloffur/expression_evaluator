@@ -6,6 +6,7 @@
 #include <cctype>
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
 #include "bigint.h"
 #include "bigint_extra.h"
 #include "timing.hpp"
@@ -22,21 +23,74 @@ namespace evl
         PHYSICS,
         ERROR
     };
+
     enum TokenType
-    {   
+    {
         NUMBER,
         OPERATOR,
         FUNCTION,
         PARENTHESIS,
-        PREV
+        PREV,
+        VARIABLE,
+        ASSIGNMENT
     };
-    // Можно добавить константы
-    std::map<std::string, std::string> constants_math = {{"pi", "3.141592653589793"}, {"e", "2.718281828459045"}, {"phi", "1.618033988749895"}};
-    std::map<std::string, std::string> physic_constants = {{"с", " 2.99792458e8"}};
-    static bool TIME_TESTING = false;
-    static bool TRIG_MODE_DEG = false;
-    static double DOUBLE_ANS=0;
-    bigint BIGINT_ANS=0;
+
+    // Mathematical constants
+    std::map<std::string, std::string> math_constants = {
+        {"pi", "3.141592653589793"}, 
+        {"e", "2.718281828459045"}, 
+        {"phi", "1.618033988749895"}
+    };
+
+    std::map<std::string, std::string> physics_constants = {
+        {"c", "2.99792458e8"}
+    };
+
+    // Variable storage
+    std::map<std::string, double> double_variables;
+    std::map<std::string, bigint> bigint_variables;
+
+    const std::vector<std::string> BANNED_NAMES = {
+        // Mathematical constants
+        "pi", "e", "phi", "euler", "gamma",
+        // Trigonometric functions
+        "sin", "cos", "tan", "tg", "ctg", "cot", "sec", "csc",
+        "asin", "acos", "atan", "atan2",
+        "arcsin", "arccos", "arctan", "arctg", "arcctg", "arccot",
+        "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
+        // Logarithmic functions
+        "ln", "lg", "log", "log2", "log10", "exp", "exp2",
+        // Power and root functions
+        "sqrt", "cbrt", "pow", "sqr", "square", "cube",
+        // Other math functions
+        "abs", "fabs", "ceil", "floor", "round", "trunc",
+        "max", "min", "sum", "avg", "mean",
+        "factorial", "fact", "gamma", "lgamma",
+        // BigInt functions
+        "fib", "fibonacci", "gcd", "lcm", "powmod", "binomial",
+        // Special tokens and commands
+        "ans", "prev", "last", "result",
+        "help", "exit", "quit", "clear", "cls",
+        "deg", "rad", "mode", "vars", "variables", "var", "v",
+        "double", "int", "bigint", "exact", "aprox",
+        // Operators and keywords
+        "mod", "div", "and", "or", "not", "xor",
+        "if", "then", "else", "for", "while", "do",
+        "true", "false", "null", "undefined", "infinity", "nan",
+        // Physics constants
+        "c", "h", "k", "g", "R", "Na", "F",
+        "lightspeed", "planck", "boltzmann", "avogadro",
+        // Units
+        "m", "kg", "s", "A", "K", "mol", "cd",
+        "mm", "cm", "km", "g", "mg", "ms", "ns",
+        // System names
+        "system", "eval", "calc", "function", "let", "const"
+    };
+
+    static bool time_testing = false;
+    static bool trig_mode_degrees = false;
+    static double double_answer = 0;
+    bigint bigint_answer = 0;
     const double DEG_TO_RAD = 0.01745329251994329576923690768488612713412398;
 
     struct Token
@@ -45,15 +99,17 @@ namespace evl
         std::string value;
     };
 
-    // Токенайзер
+    // Tokenizer
     std::vector<Token> tokenize(const std::string &expr)
     {
-        if (TIME_TESTING)
+        if (time_testing)
         {
             time();
         }
+
         std::vector<Token> tokens;
         std::string num;
+
         for (size_t i = 0; i < expr.size(); ++i)
         {
             char ch = expr[i];
@@ -89,26 +145,33 @@ namespace evl
                 func += ch;
                 while (i + 1 < expr.size() && isalpha(expr[i + 1]))
                     func += expr[++i];
-                if(func=="ans"){
-                    tokens.push_back({PREV,""});
-                } else 
-                if (constants_math.find(func) != constants_math.end())
+
+                if (func == "ans")
                 {
-                    tokens.push_back({NUMBER, constants_math[func]});
+                    tokens.push_back({PREV, ""});
+                }
+                else if (math_constants.find(func) != math_constants.end())
+                {
+                    tokens.push_back({NUMBER, math_constants[func]});
+                }
+                else if (double_variables.find(func) != double_variables.end() || 
+                         bigint_variables.find(func) != bigint_variables.end())
+                {
+                    tokens.push_back({VARIABLE, func});
                 }
                 else
                 {
                     tokens.push_back({FUNCTION, func});
                 }
             }
-            // Отдельна обработка минуса для определения унарного
+            // Separate handling of minus for unary detection
             else if (ch == '-')
             {
                 if (tokens.empty() ||
                     tokens.back().type == OPERATOR ||
                     (tokens.back().type == PARENTHESIS && tokens.back().value == "("))
                 {
-                    tokens.push_back({OPERATOR, "~"}); // унарный минус
+                    tokens.push_back({OPERATOR, "~"}); // unary minus
                 }
                 else
                 {
@@ -119,7 +182,11 @@ namespace evl
             {
                 tokens.push_back({OPERATOR, std::string(1, ch)});
             }
-            // Скобки
+            else if (ch == '=')
+            {
+                tokens.push_back({ASSIGNMENT, "="});
+            }
+            // Parentheses
             else if (ch == '(' || ch == ')')
             {
                 tokens.push_back({PARENTHESIS, std::string(1, ch)});
@@ -146,12 +213,12 @@ namespace evl
         return 0;
     }
 
-    bool isRightAssociative(const std::string &op)
+    bool is_right_associative(const std::string &op)
     {
         return op == "^" || op == "!" || op == "~";
     }
 
-    std::vector<Token> toPostfix(const std::vector<Token> &tokens)
+    std::vector<Token> to_postfix(const std::vector<Token> &tokens)
     {
         std::vector<Token> output;
         std::stack<Token> ops;
@@ -161,6 +228,14 @@ namespace evl
             if (token.type == NUMBER)
             {
                 output.push_back(token);
+            }
+            else if (token.type == PREV || token.type == VARIABLE)
+            {
+                output.push_back(token);
+            }
+            else if (token.type == ASSIGNMENT)
+            {
+                ops.push(token);
             }
             else if (token.type == FUNCTION)
             {
@@ -172,7 +247,7 @@ namespace evl
                                         (ops.top().type == OPERATOR &&
                                          (precedence(ops.top().value) > precedence(token.value) ||
                                           (precedence(ops.top().value) == precedence(token.value) &&
-                                           !isRightAssociative(token.value))))))
+                                           !is_right_associative(token.value))))))
                 {
                     output.push_back(ops.top());
                     ops.pop();
@@ -209,7 +284,17 @@ namespace evl
         return output;
     }
 
-    double evalPostfix_double(const std::vector<Token> &postfix)
+    // Helper function for safe stack operations
+    double safe_pop_double(std::stack<double>& stk)
+    {
+        if (stk.empty())
+            throw std::runtime_error("Stack underflow - insufficient operands");
+        double val = stk.top();
+        stk.pop();
+        return val;
+    }
+
+    double eval_postfix_double(const std::vector<Token> &postfix)
     {
         std::stack<double> stk;
 
@@ -219,86 +304,103 @@ namespace evl
             {
                 stk.push(stod(token.value));
             }
+            else if (token.type == PREV)
+            {
+                stk.push(double_answer);
+            }
+            else if (token.type == VARIABLE)
+            {
+                if (double_variables.find(token.value) != double_variables.end())
+                {
+                    stk.push(double_variables[token.value]);
+                }
+                else
+                {
+                    throw std::runtime_error("Undefined variable: " + token.value);
+                }
+            }
             else if (token.type == OPERATOR || token.type == FUNCTION)
             {
                 if (token.value == "+")
                 {
-                    double b = stk.top();
-                    stk.pop();
-                    double a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for +");
+                    double b = safe_pop_double(stk);
+                    double a = safe_pop_double(stk);
                     stk.push(a + b);
                 }
                 else if (token.value == "-")
                 {
-                    double b = stk.top();
-                    stk.pop();
-                    double a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for -");
+                    double b = safe_pop_double(stk);
+                    double a = safe_pop_double(stk);
                     stk.push(a - b);
                 }
                 else if (token.value == "*")
                 {
-                    double b = stk.top();
-                    stk.pop();
-                    double a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for *");
+                    double b = safe_pop_double(stk);
+                    double a = safe_pop_double(stk);
                     stk.push(a * b);
                 }
                 else if (token.value == "/")
                 {
-                    double b = stk.top();
-                    stk.pop();
-                    double a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for /");
+                    double b = safe_pop_double(stk);
+                    double a = safe_pop_double(stk);
                     if (b == 0)
-                        throw std::runtime_error("Divsion by zero");
+                        throw std::runtime_error("Division by zero");
                     stk.push(a / b);
                 }
                 else if (token.value == "%")
                 {
-                    double b = stk.top();
-                    stk.pop();
-                    double a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for %");
+                    double b = safe_pop_double(stk);
+                    double a = safe_pop_double(stk);
                     stk.push(fmod(a, b));
                 }
                 else if (token.value == "^")
                 {
-                    double b = stk.top();
-                    stk.pop();
-                    double a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for ^");
+                    double b = safe_pop_double(stk);
+                    double a = safe_pop_double(stk);
                     stk.push(pow(a, b));
                 }
                 else if (token.value == "~")
                 {
-                    double a = stk.top();
-                    stk.pop();
+                    if (stk.empty())
+                        throw std::runtime_error("Insufficient operands for unary -");
+                    double a = safe_pop_double(stk);
                     stk.push(-a);
                 }
                 else
                 {
-                    // бинарные функции
+                    // Binary functions
                     if (token.value == "log")
                     {
-                        double arg = stk.top();
-                        stk.pop();
-                        double base = stk.top();
-                        stk.pop();
+                        if (stk.size() < 2)
+                            throw std::runtime_error("Insufficient operands for log");
+                        double arg = safe_pop_double(stk);
+                        double base = safe_pop_double(stk);
                         if (arg <= 0 || base <= 0 || base == 1)
                             throw std::runtime_error("Logarithm error");
                         stk.push(log(arg) / log(base));
                     }
                     else
                     {
-                        // унарные функции
-                        double a = stk.top();
-                        stk.pop();
+                        // Unary functions
+                        if (stk.empty())
+                            throw std::runtime_error("Insufficient operands for function " + token.value);
+                        double a = safe_pop_double(stk);
 
                         if (token.value == "sin")
                         {
-                            if (TRIG_MODE_DEG)
+                            if (trig_mode_degrees)
                             {
                                 stk.push(sin(a * DEG_TO_RAD));
                             }
@@ -309,7 +411,7 @@ namespace evl
                         }
                         else if (token.value == "cos")
                         {
-                            if (TRIG_MODE_DEG)
+                            if (trig_mode_degrees)
                             {
                                 stk.push(cos(a * DEG_TO_RAD));
                             }
@@ -365,14 +467,24 @@ namespace evl
 
         if (stk.size() != 1)
             throw std::runtime_error("Incorrect expression");
-        if (TIME_TESTING)
+        if (time_testing)
         {
             time();
         }
         return stk.top();
     }
 
-    bigint evalPostfix_bigint(const std::vector<Token> &postfix)
+    // Helper function for safe bigint stack operations
+    bigint safe_pop_bigint(std::stack<bigint>& stk)
+    {
+        if (stk.empty())
+            throw std::runtime_error("Stack underflow - insufficient operands");
+        bigint val = stk.top();
+        stk.pop();
+        return val;
+    }
+
+    bigint eval_postfix_bigint(const std::vector<Token> &postfix)
     {
         std::stack<bigint> stk;
 
@@ -382,79 +494,96 @@ namespace evl
             {
                 stk.push(bigint(token.value));
             }
+            else if (token.type == PREV)
+            {
+                stk.push(bigint_answer);
+            }
+            else if (token.type == VARIABLE)
+            {
+                if (bigint_variables.find(token.value) != bigint_variables.end())
+                {
+                    stk.push(bigint_variables[token.value]);
+                }
+                else
+                {
+                    throw std::runtime_error("Undefined variable: " + token.value);
+                }
+            }
             else if (token.type == OPERATOR || token.type == FUNCTION)
             {
                 if (token.value == "+")
                 {
-                    bigint b = stk.top();
-                    stk.pop();
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for +");
+                    bigint b = safe_pop_bigint(stk);
+                    bigint a = safe_pop_bigint(stk);
                     stk.push(a + b);
                 }
                 else if (token.value == "-")
                 {
-                    bigint b = stk.top();
-                    stk.pop();
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for -");
+                    bigint b = safe_pop_bigint(stk);
+                    bigint a = safe_pop_bigint(stk);
                     stk.push(a - b);
                 }
                 else if (token.value == "*")
                 {
-                    bigint b = stk.top();
-                    stk.pop();
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for *");
+                    bigint b = safe_pop_bigint(stk);
+                    bigint a = safe_pop_bigint(stk);
                     stk.push(a * b);
                 }
                 else if (token.value == "/")
                 {
-                    bigint b = stk.top();
-                    stk.pop();
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for /");
+                    bigint b = safe_pop_bigint(stk);
+                    bigint a = safe_pop_bigint(stk);
                     if (b.isZero())
                         throw std::runtime_error("Division by zero");
                     stk.push(a / b);
                 }
                 else if (token.value == "%")
                 {
-                    bigint b = stk.top();
-                    stk.pop();
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for %");
+                    bigint b = safe_pop_bigint(stk);
+                    bigint a = safe_pop_bigint(stk);
                     stk.push(a % b);
                 }
                 else if (token.value == "^")
                 {
-                    bigint b = stk.top();
-                    stk.pop();
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.size() < 2)
+                        throw std::runtime_error("Insufficient operands for ^");
+                    bigint b = safe_pop_bigint(stk);
+                    bigint a = safe_pop_bigint(stk);
                     stk.push(a.to_pow(b));
                 }
                 else if (token.value == "!")
                 {
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.empty())
+                        throw std::runtime_error("Insufficient operands for !");
+                    bigint a = safe_pop_bigint(stk);
                     stk.push(factorial(a));
                 }
                 else if (token.value == "~")
                 {
-                    bigint a = stk.top();
-                    stk.pop();
+                    if (stk.empty())
+                        throw std::runtime_error("Insufficient operands for unary -");
+                    bigint a = safe_pop_bigint(stk);
                     stk.push(-a);
                 }
                 else
                 {
-                    // бинарные функции
+                    // Binary functions
                     if (token.value == "C")
                     {
-                        bigint a = stk.top();
-                        stk.pop();
-                        bigint b = stk.top();
-                        stk.pop();
+                        if (stk.size() < 2)
+                            throw std::runtime_error("Insufficient operands for C");
+                        bigint a = safe_pop_bigint(stk);
+                        bigint b = safe_pop_bigint(stk);
                         if (a >= b)
                         {
                             stk.push(binomial(a, b));
@@ -466,35 +595,35 @@ namespace evl
                     }
                     else if (token.value == "powmod")
                     {
-                        bigint a = stk.top();
-                        stk.pop();
-                        bigint pow = stk.top();
-                        stk.pop();
-                        bigint mod = stk.top();
-                        stk.pop();
+                        if (stk.size() < 3)
+                            throw std::runtime_error("Insufficient operands for powmod");
+                        bigint a = safe_pop_bigint(stk);
+                        bigint pow = safe_pop_bigint(stk);
+                        bigint mod = safe_pop_bigint(stk);
                         stk.push(pow_mod(a, pow, mod));
                     }
                     else if (token.value == "lcm")
                     {
-                        bigint a = stk.top();
-                        stk.pop();
-                        bigint b = stk.top();
-                        stk.pop();
+                        if (stk.size() < 2)
+                            throw std::runtime_error("Insufficient operands for lcm");
+                        bigint a = safe_pop_bigint(stk);
+                        bigint b = safe_pop_bigint(stk);
                         stk.push(lcm(a, b));
                     }
                     else if (token.value == "gcd")
                     {
-                        bigint a = stk.top();
-                        stk.pop();
-                        bigint b = stk.top();
-                        stk.pop();
+                        if (stk.size() < 2)
+                            throw std::runtime_error("Insufficient operands for gcd");
+                        bigint a = safe_pop_bigint(stk);
+                        bigint b = safe_pop_bigint(stk);
                         stk.push(gcd(a, b));
                     }
                     else
                     {
-                        // унарные функции
-                        bigint a = stk.top();
-                        stk.pop();
+                        // Unary functions
+                        if (stk.empty())
+                            throw std::runtime_error("Insufficient operands for function " + token.value);
+                        bigint a = safe_pop_bigint(stk);
                         if (token.value == "sqr")
                             stk.push(a * a);
                         else if (token.value == "sqrt")
@@ -504,7 +633,7 @@ namespace evl
                         else if (token.value == "fib")
                             stk.push(fibonacci(a));
                         else
-                            throw std::runtime_error("Unknowm function " + token.value);
+                            throw std::runtime_error("Unknown function " + token.value);
                     }
                 }
             }
@@ -512,7 +641,7 @@ namespace evl
 
         if (stk.size() != 1)
             throw std::runtime_error("Incorrect expression");
-        if (TIME_TESTING)
+        if (time_testing)
         {
             time();
         }
@@ -522,23 +651,73 @@ namespace evl
     double evaluate_double_expression(const std::string &expression)
     {
         auto tokens = tokenize(expression);
-        auto postfix = toPostfix(tokens);
-        return evalPostfix_double(postfix);
+        auto postfix = to_postfix(tokens);
+        return eval_postfix_double(postfix);
     }
 
     bigint evaluate_bigint_expression(const std::string &expression)
     {
         auto tokens = tokenize(expression);
-        auto postfix = toPostfix(tokens);
-        return evalPostfix_bigint(postfix);
+        auto postfix = to_postfix(tokens);
+        return eval_postfix_bigint(postfix);
     }
 
-    // Evaluates a string, recognises colon [mode:] notation, adds brackets
-    // Temporary function. Should move this to tokenizer and add support of double functions recognition
-    EvalVersion Analize_fix(std::string &input)
+    // Check for variable assignment
+    bool is_assignment(const std::string &expression, std::string &var_name, std::string &var_expression)
+    {
+        size_t eq_pos = expression.find('=');
+        if (eq_pos == std::string::npos || eq_pos == 0 || eq_pos == expression.length() - 1)
+            return false;
+
+        var_name = expression.substr(0, eq_pos);
+        var_expression = expression.substr(eq_pos + 1);
+
+        // Remove spaces
+        var_name.erase(std::remove_if(var_name.begin(), var_name.end(), ::isspace), var_name.end());
+        var_expression.erase(std::remove_if(var_expression.begin(), var_expression.end(), ::isspace), var_expression.end());
+
+        // Check that variable name is correct
+        if (var_name.empty() || !std::isalpha(var_name[0]))
+            return false;
+
+        for (char c : var_name)
+        {
+            if (!std::isalnum(c) && c != '_')
+                return false;
+        }
+
+        return true;
+    }
+
+    // Assign variable (double)
+    void assign_variable_double(const std::string &name, double value)
+    {
+        double_variables[name] = value;
+        // Remove from bigint if it was there
+        bigint_variables.erase(name);
+    }
+
+    // Assign variable (bigint)
+    void assign_variable_bigint(const std::string &name, const bigint &value)
+    {
+        bigint_variables[name] = value;
+        // Remove from double if it was there
+        double_variables.erase(name);
+    }
+
+    // Clear all variables
+    void clear_variables()
+    {
+        double_variables.clear();
+        bigint_variables.clear();
+    }
+
+    // Evaluates a string, recognizes colon [mode:] notation, adds brackets
+    EvalVersion analyze_and_fix(std::string &input)
     {
         bool colon_command = false;
         char colon_char;
+
         if (input.length() == 2)
         {
             if (input == "d:")
@@ -550,22 +729,26 @@ namespace evl
                 return COMMAND;
             }
         }
+
         if (input.length() > 2 && input[1] == ':')
         {
             colon_char = input[0];
             input.erase(0, 2);
             colon_command = true;
         }
+
         bool has_double_triggers = false;
         bool has_int_triggers = false;
         int bracket_index = 0;
-        for (int i = 0; i < input.size(); i++)
+
+        for (size_t i = 0; i < input.size(); i++)
         {
             if (isdigit(input[i]))
             {
                 has_int_triggers = true;
             }
-            else if (input[i] == '+' || input[i] == '*' || input[i] == '-' || input[i] == '/' || input[i] == '^' || input[i] == '!')
+            else if (input[i] == '+' || input[i] == '*' || input[i] == '-' || 
+                     input[i] == '/' || input[i] == '^' || input[i] == '!')
             {
                 has_int_triggers = true;
             }
@@ -585,7 +768,8 @@ namespace evl
                 has_int_triggers = true;
             }
         }
-        //trying to fix brackets just by adding from left or right
+
+        // Try to fix brackets by adding from left or right
         if (bracket_index > 0)
         {
             while (bracket_index)
@@ -605,7 +789,8 @@ namespace evl
             }
             input = temp + input;
         }
-        //returning colon_mode command
+
+        // Return colon_mode command
         if (colon_command)
         {
             switch (colon_char)
@@ -624,6 +809,7 @@ namespace evl
                 return ERROR;
             }
         }
+
         if (has_double_triggers)
         {
             return DOUBLE;
@@ -635,80 +821,146 @@ namespace evl
         return COMMAND;
     }
 
-    /// enters calculator mode. Simple API for external use
+    // Display help message
+    void show_help(bool double_eval, bool bigint_approximate)
+    {
+        system("cls");
+        std::cout << "[*] BASIC COMMANDS:\n";
+        std::cout << "  help         - Show this help message\n";
+        std::cout << "  quit/q/exit  - Exit calculator\n";
+        std::cout << "  clear/c      - Clear screen\n";
+        std::cout << "  vars/v       - Show all variables\n";
+        std::cout << "\n";
+        std::cout << "[>] MODE SETTINGS:\n";
+        std::cout << "  deg          - Switch to degrees mode\n";
+        std::cout << "  rad          - Switch to radians mode\n";
+        std::cout << "  double/d     - Force double precision mode\n";
+        std::cout << "  int/bigint/i - Force integer mode\n";
+        std::cout << "  exact        - Exact bigint output\n";
+        std::cout << "  aprox        - Approximate bigint output\n";
+        std::cout << "\n";
+        std::cout << "[=] EXPRESSIONS:\n";
+        std::cout << "  Basic: 2+3*4, sin(pi/2), sqrt(16), 5!\n";
+        std::cout << "  Variables: x = 5, y = x*2, ans (previous result)\n";
+        std::cout << "  Mode prefix: d:3.14*2, i:100!\n";
+        std::cout << "\n";
+        std::cout << "[f] FUNCTIONS:\n";
+        std::cout << "  Trig: sin, cos, tan, arcsin, arccos, arctan\n";
+        std::cout << "  Log: ln, lg, log(base,arg)\n";
+        std::cout << "  Other: sqrt, abs, factorial(!), gcd, lcm\n";
+        std::cout << "\n";
+        std::cout << "[i] CURRENT STATUS:\n";
+        std::cout << "  Trig mode: " << (trig_mode_degrees ? "Degrees" : "Radians") << "\n";
+        std::cout << "  Eval mode: " << (double_eval ? "Double" : "Auto-detect") << "\n";
+        std::cout << "  BigInt output: " << (bigint_approximate ? "Approximate" : "Exact") << "\n\n";
+    }
+
+    void show_status(bool double_eval, bool bigint_approximate)
+    {
+        std::cout << "[i] CURRENT STATUS:\n";
+        std::cout << "  Trig mode: " << (trig_mode_degrees ? "Degrees" : "Radians") << "\n";
+        std::cout << "  Eval mode: " << (double_eval ? "Double" : "Auto-detect") << "\n";
+        std::cout << "  BigInt output: " << (bigint_approximate ? "Approximate" : "Exact") << "\n\n";
+    }
+
+    // Enter calculator mode. Simple API for external use
     void calculator_mode()
     {
         std::cout << "Evaluation mode. To change trigonometric functions mode use [rad] and [deg]\n\n";
         bool eval_state = true;
         bool double_eval = false;
-        bool bigint_aproximate = false;
+        bool bigint_approximate = false;
         std::string text_input;
         EvalVersion eval_version = COMMAND;
+
         while (eval_state)
         {
             std::getline(std::cin, text_input);
             if (text_input.size() == 0 || text_input == " ")
             {
                 continue;
-            };
+            }
+
             if (text_input == "exit" || text_input == "q" || text_input == "quit")
             {
                 system("cls");
                 std::cout << "regular mode \n";
                 return;
-                eval_state = false;
             }
-            eval_version = Analize_fix(text_input);
+
+            eval_version = analyze_and_fix(text_input);
             if (eval_version == BIGINT && double_eval == true)
             {
                 eval_version = DOUBLE;
             }
+
             if (eval_version == COMMAND)
             {
+                if (text_input == "clear vars" || text_input == "cvar")
+                {
+                    clear_variables();
+                    std::cout << "Variables cleared\n";
+                    continue;
+                }
+                if (text_input == "s" || text_input == "status")
+                {
+                    show_status(double_eval, bigint_approximate);
+                    continue;
+                }
+                if (text_input == "reset")
+                {
+                    clear_variables();
+                    bigint_approximate = false;
+                    double_eval = false;
+                    trig_mode_degrees = false;
+                    std::cout << "Settings reset\n";
+                    continue;
+                }
                 if (text_input == "help")
                 {
-                    std::cout << "help -- help \ndeg/rad -- switch trig mode \nclear/c -- clear screen \n";
-                    std::cout << "quit -- quit\n";
-                    std::cout << "trig -- show trig mode\n";
-                    std::cout << "aprox/exact -- presentation mode for bigint calculations\n";
-                    std::cout << "You can enter calculations as is \nIf you want to specify, you can use [d:] for double and [i:] for integer\n\n";
-                    std::cout << "Trigonometry mode : " << (TRIG_MODE_DEG ? "degrees" : "radian") << "\n";
+                    show_help(double_eval, bigint_approximate);
                     continue;
                 }
                 if (text_input == "double" || text_input == "d" || text_input == "d:")
                 {
                     double_eval = true;
+                    std::cout << "Double mode enabled\n";
                     continue;
                 }
                 if (text_input == "int" || text_input == "bigint" || text_input == "i:" || text_input == "i")
                 {
                     double_eval = false;
+                    std::cout << "Integer mode enabled\n";
                     continue;
                 }
                 if (text_input == "deg")
                 {
-                    evl::TRIG_MODE_DEG = true;
+                    trig_mode_degrees = true;
+                    std::cout << "Degrees mode enabled\n";
                     continue;
                 }
                 if (text_input == "rad")
                 {
-                    evl::TRIG_MODE_DEG = false;
+                    trig_mode_degrees = false;
+                    std::cout << "Radians mode enabled\n";
                     continue;
                 }
-                if (text_input == "aprox" || text_input == "aproximate")
+                if (text_input == "aprox" || text_input == "approximate")
                 {
-                    bigint_aproximate = true;
+                    bigint_approximate = true;
+                    std::cout << "Approximate output enabled\n";
                     continue;
                 }
                 if (text_input == "exact")
                 {
-                    bigint_aproximate = false;
+                    bigint_approximate = false;
+                    std::cout << "Exact output enabled\n";
                     continue;
                 }
                 if (text_input == "clear" || text_input == "c")
                 {
                     system("cls");
-                    if (TRIG_MODE_DEG)
+                    if (trig_mode_degrees)
                     {
                         std::cout << "Trigonometry mode: degrees\n";
                     }
@@ -716,24 +968,56 @@ namespace evl
                     {
                         std::cout << "Evaluating as double\n";
                     }
-                    if (bigint_aproximate)
+                    if (bigint_approximate)
                     {
-                        std::cout << "Aproximating bigint output\n";
+                        std::cout << "Approximating bigint output\n";
                     }
                     continue;
                 }
-                if (text_input == "quit" || text_input == "q")
+                if (text_input == "vars" || text_input == "variables" || text_input == "var" || text_input == "v")
                 {
-                    eval_state = false;
+                    std::cout << "Variables:\n";
+                    for (const auto &var : double_variables)
+                    {
+                        std::cout << var.first << " = " << var.second << " (float)\n";
+                    }
+                    for (const auto &var : bigint_variables)
+                    {
+                        std::cout << var.first << " = " << var.second << " (integer)\n";
+                    }
+                    if (double_variables.empty() && bigint_variables.empty())
+                    {
+                        std::cout << "No variables defined\n";
+                    }
+                    continue;
                 }
-                std::cout << "Unknown command \n";
+                std::cout << "Unknown command\n";
             }
             else if (eval_version == DOUBLE)
             {
                 try
-                {   
-                    DOUBLE_ANS=evl::evaluate_double_expression(text_input);
-                    std::cout << DOUBLE_ANS << "\n";
+                {
+                    std::string var_name, var_expr;
+                    if (is_assignment(text_input, var_name, var_expr))
+                    {
+                        // Check for banned names
+                        bool is_banned = std::find(BANNED_NAMES.begin(), BANNED_NAMES.end(), var_name) != BANNED_NAMES.end();
+                        if (is_banned)
+                        {
+                            std::cerr << "Error: '" << var_name << "' is a reserved name and cannot be used as variable\n";
+                            continue;
+                        }
+
+                        double result = evaluate_double_expression(var_expr);
+                        assign_variable_double(var_name, result);
+                        double_answer = result;
+                        std::cout << var_name << " = " << result << "\n";
+                    }
+                    else
+                    {
+                        double_answer = evaluate_double_expression(text_input);
+                        std::cout << double_answer << "\n";
+                    }
                 }
                 catch (const std::exception &e)
                 {
@@ -744,15 +1028,41 @@ namespace evl
             {
                 try
                 {
-                    if (bigint_aproximate == true)
+                    std::string var_name, var_expr;
+                    if (is_assignment(text_input, var_name, var_expr))
                     {
-                        BIGINT_ANS=evl::evaluate_bigint_expression(text_input);
-                        std::cout << aproximation_print(BIGINT_ANS) << "\n";
+                        // Check for banned names
+                        bool is_banned = std::find(BANNED_NAMES.begin(), BANNED_NAMES.end(), var_name) != BANNED_NAMES.end();
+                        if (is_banned)
+                        {
+                            std::cerr << "Error: '" << var_name << "' is a reserved name and cannot be used as variable\n";
+                            continue;
+                        }
+
+                        bigint result = evaluate_bigint_expression(var_expr);
+                        assign_variable_bigint(var_name, result);
+                        bigint_answer = result;
+                        if (bigint_approximate)
+                        {
+                            std::cout << var_name << " ~ " << aproximation_print(result) << "\n";
+                        }
+                        else
+                        {
+                            std::cout << var_name << " = " << result << "\n";
+                        }
                     }
                     else
                     {
-                        BIGINT_ANS=evl::evaluate_bigint_expression(text_input);
-                        std::cout << BIGINT_ANS << "\n";
+                        if (bigint_approximate)
+                        {
+                            bigint_answer = evaluate_bigint_expression(text_input);
+                            std::cout << aproximation_print(bigint_answer) << "\n";
+                        }
+                        else
+                        {
+                            bigint_answer = evaluate_bigint_expression(text_input);
+                            std::cout << bigint_answer << "\n";
+                        }
                     }
                 }
                 catch (const std::exception &e)
@@ -761,7 +1071,5 @@ namespace evl
                 }
             }
         }
-        return;
     }
-
 }
