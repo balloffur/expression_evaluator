@@ -1,11 +1,11 @@
+#include "timing.hpp"
 #include "bigint.h"
-#include "evaluate.hpp"
 
-
-int main(){
-    bigint a("-1");
-    bigint b(-1);
-    bigint c(0);
-    bigint d((double)-1000);
-    std::cout<<a.isNegative()<<" "<<b.isNegative()<<" "<<c.isNegative()<<" "<<d.isNegative()<<"\n";    
+int main() {
+    bigint a(std::string(100000,1));
+    time();
+    for(int i=0;i<10000;i++){
+        a*=-1;
+    }
+    time();
 }

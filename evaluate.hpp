@@ -42,6 +42,7 @@ namespace evl
         {"phi", "1.618033988749895"}
     };
 
+    // Physics constants
     std::map<std::string, std::string> physics_constants = {
         {"c", "2.99792458e8"}
     };
@@ -50,6 +51,7 @@ namespace evl
     std::map<std::string, double> double_variables;
     std::map<std::string, bigint> bigint_variables;
 
+    //Banned names for variables
     const std::vector<std::string> BANNED_NAMES = {
         // Mathematical constants
         "pi", "e", "phi", "euler", "gamma",
@@ -89,6 +91,7 @@ namespace evl
 
     static bool time_testing = false;
     static bool trig_mode_degrees = false;
+    // Storage for results
     static double double_answer = 0;
     bigint bigint_answer = 0;
     const double DEG_TO_RAD = 0.01745329251994329576923690768488612713412398;
@@ -662,7 +665,7 @@ namespace evl
         return eval_postfix_bigint(postfix);
     }
 
-    // Check for variable assignment
+    // Check for variable assignment, if variable -- writes name to var_name and expression to var_expression
     bool is_assignment(const std::string &expression, std::string &var_name, std::string &var_expression)
     {
         size_t eq_pos = expression.find('=');

@@ -12,10 +12,8 @@
 bool primes_int_initialised = false;
 std::string CURRENT_VERSION = "30.06.2025";
 std::string HELLO_MESS = 
-"Console calculator\n"
-"To get help type [help] or [h] \n"
-"To use basic integer functions -- stay here\n"
-"To enter evaluation mode -- use [eval] or [e]\n";
+"Console Calculator v" + CURRENT_VERSION + "\n"
+"Type 'help' for commands or 'eval' for advanced mode\n\n";
 
 void print_factor(bigint a)
 {
@@ -208,38 +206,27 @@ std::map<std::string, actions> what_to_do{
 
 void print_help()
 {
-    std::cout << "Version " << CURRENT_VERSION << "\n";
-    std::cout << "Format is: command argument_1 argument_2 ...\n";
-    std::cout << "List of commands:\n";
-    std::cout << "init -- euclid for all integers. saved in primes\n";
-    // primes and factors
-    std::cout << "rsp -- random small prime, under 1000000\n";
-    std::cout << "rbp -- random big prime of size 9*[n]\n";
-    std::cout << "pn -- prime number [n] \n";
-    std::cout << "pi -- how many primes before [n]. Gotta init for [n]>1000000 \n";
-    std::cout << "prime -- tells if a number is prime \n";
-    std::cout << "primes -- first [n] primes\n";
-    std::cout << "factor -- factorisation\n";
-    std::cout << "gcd -- finds gcd of 2 large number [a] [b]\n";
-    std::cout << "egcd -- extended gcd [a] [b]\n";
-    // combinatorics
-    std::cout << "binomial-- finds binomial coefficient [n] [m] \n";
-    std::cout << "factorial -- [n]!\n";
-    std::cout << "fib -- fibonacci number [n]\n";
-    std::cout << "demofib -- first few fibonacci nums [n]\n";
-    // digits
-    std::cout << "sod -- sum of digits [n]\n";
-    std::cout << "nod -- number of digits [n]\n";
-    std::cout << "base -- converts from [OLD_BASE] to [NEW_BASE NUMBER] [n] BASES from 2 to 37 \n";
-    std::cout << "hextodec,hextobin,dectobin,dectohex,bintohex,bintodec -- base conversions [n] \n";
-    // modular
-    std::cout << "pow -- to power [n] [power]\n";
-    std::cout << "powmod -- to power mod [n] [power] [mod]\n";
-    std::cout << "inverse -- modular inverse [n] [mod]\n";
-
-    // eval
-    std::cout << "eval -- (testing) enter a comprehansive evaluation mode.\nCan evaluate both big integers and doubles. \nFor a simple int calculator just write stuff\n";
-    std::cout << "clearvars -- clear all variables from evaluation mode\n";
+    std::cout << "\nConsole Calculator v" << CURRENT_VERSION << "\n\n";
+    
+    std::cout << "PRIMES & FACTORS:\n";
+    std::cout << "  prime, factor, rsp, rbp [n], pn [n], pi [n], primes [n]\n\n";
+    
+    std::cout << "ARITHMETIC:\n";
+    std::cout << "  gcd [a] [b], pow [n] [p], powmod [n] [p] [m], inverse [n] [m]\n\n";
+    
+    std::cout << "COMBINATORICS:\n";
+    std::cout << "  factorial [n], binomial [n] [k], fib [n], demofib\n\n";
+    
+    std::cout << "UTILITIES:\n";
+    std::cout << "  sod [n], nod [n], aprox, base [old] [new] [num]\n\n";
+    
+    std::cout << "SYSTEM:\n";
+    std::cout << "  help/h, clear/c, reset, show, quit/q\n\n";
+    
+    std::cout << "ADVANCED:\n";
+    std::cout << "  eval - Enter expression mode (variables, functions)\n\n";
+    
+    std::cout << "TIP: Type expressions directly: 2+3*4, (5+7)*2, 123^456\n\n";
 }
 
 int main()
