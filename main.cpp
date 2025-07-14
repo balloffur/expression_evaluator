@@ -12,7 +12,7 @@
 
 
 bool primes_int_initialised = false;
-std::string CURRENT_VERSION = "30.06.2025";
+std::string CURRENT_VERSION = "14.07.2025";
 std::string HELLO_MESS =
     "Console Calculator v" + CURRENT_VERSION +
     "\n"
@@ -242,11 +242,10 @@ int main() {
   std::string input;
   bigint current_number = 0;
   bigint temp_number;
-again:
   while (is_runnig) {
     std::cin >> input;
     if (input.length() == 0) {
-      goto again;
+      continue;
     }
     // evaluates expressions, if no commands are inputed
     if (input[0] == '+' || input[0] == '-' || input[0] == '*' ||
@@ -263,7 +262,7 @@ again:
       } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
       }
-      goto again;
+      continue;
     }
     if (input[0] == '(' || input[0] > 47 && input[0] < 58) {
       {
@@ -275,10 +274,9 @@ again:
           std::cerr << "Error: " << e.what() << std::endl;
         }
       }
-      goto again;
+      continue;
     }
     actions action = what_to_do[input];
-  after_input:
     switch (action) {
     case skip:
       break;
@@ -393,7 +391,7 @@ again:
       }
       if (temp > 105097565) {
         std::cout << "Too high\n";
-        goto again;
+        break;
       }
       if (temp > 78498 && primes_int_initialised == false) {
         std::cout << "Too high. Do you want to wait?" << "\n";
@@ -403,7 +401,7 @@ again:
           primes_int_initialised = true;
         } else {
           std::cout << "Okay!" << "\n";
-          goto again;
+          break;
         }
       }
       current_number = primes[temp - 1];
@@ -468,7 +466,7 @@ again:
           primes_int_initialised = true;
         } else {
           std::cout << "Okay!" << "\n";
-          goto again;
+          break;
         }
       }
       if (temp > 0) {

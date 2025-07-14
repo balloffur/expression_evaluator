@@ -96,8 +96,13 @@ std::vector<Token> tokenize(const std::string &expr) {
   for (size_t i = 0; i < expr.size(); ++i) {
     char ch = expr[i];
 
-    if (isspace(ch) || ch == ',')
+    if (isspace(ch))
       continue;
+    
+    if (ch == ',') {
+      tokens.push_back({OPERATOR, ","});
+      continue;
+    }
 
     if (isdigit(ch) || ch == '.') {
       bool has_dot = (ch == '.');
@@ -134,7 +139,8 @@ std::vector<Token> tokenize(const std::string &expr) {
     }
     // Separate handling of minus for unary detection
     else if (ch == '-') {
-      if (tokens.empty() || tokens.back().type == OPERATOR ||
+      if (tokens.empty() || 
+          (tokens.back().type == OPERATOR && tokens.back().value != "!") ||
           (tokens.back().type == PARENTHESIS && tokens.back().value == "(")) {
         tokens.push_back({OPERATOR, "~"}); // unary minus
       } else {
@@ -158,7 +164,9 @@ std::vector<Token> tokenize(const std::string &expr) {
 }
 
 int precedence(const std::string &op) {
-  if (op == "!" || op == "~")
+  if (op == "!")
+    return 6;
+  if (op == "~")
     return 5;
   if (op == "^")
     return 4;
@@ -166,6 +174,8 @@ int precedence(const std::string &op) {
     return 3;
   if (op == "+" || op == "-")
     return 2;
+  if (op == ",")
+    return 1;
   return 0;
 }
 
@@ -187,16 +197,21 @@ std::vector<Token> to_postfix(const std::vector<Token> &tokens) {
     } else if (token.type == FUNCTION) {
       ops.push(token);
     } else if (token.type == OPERATOR) {
-      while (!ops.empty() &&
-             ((ops.top().type == FUNCTION) ||
-              (ops.top().type == OPERATOR &&
-               (precedence(ops.top().value) > precedence(token.value) ||
-                (precedence(ops.top().value) == precedence(token.value) &&
-                 !is_right_associative(token.value)))))) {
-        output.push_back(ops.top());
-        ops.pop();
+      if (token.value == "!") {
+        // Factorial is postfix unary operator - add directly to output
+        output.push_back(token);
+      } else {
+        while (!ops.empty() &&
+               ((ops.top().type == FUNCTION) ||
+                (ops.top().type == OPERATOR &&
+                 (precedence(ops.top().value) > precedence(token.value) ||
+                  (precedence(ops.top().value) == precedence(token.value) &&
+                   !is_right_associative(token.value)))))) {
+          output.push_back(ops.top());
+          ops.pop();
+        }
+        ops.push(token);
       }
-      ops.push(token);
     } else if (token.value == "(") {
       ops.push(token);
     } else if (token.value == ")") {
@@ -206,7 +221,7 @@ std::vector<Token> to_postfix(const std::vector<Token> &tokens) {
       }
       if (!ops.empty())
         ops.pop(); // remove '('
-      if (!ops.empty() && ops.top().type == FUNCTION) {
+      while (!ops.empty() && ops.top().type == FUNCTION) {
         output.push_back(ops.top());
         ops.pop();
       }
@@ -288,6 +303,8 @@ double eval_postfix_double(const std::vector<Token> &postfix) {
           throw std::runtime_error("Insufficient operands for unary -");
         double a = safe_pop_double(stk);
         stk.push(-a);
+      } else if (token.value == ",") {
+        // Comma is just a separator, do nothing
       } else {
         // Binary functions
         if (token.value == "log") {
@@ -430,6 +447,8 @@ bigint eval_postfix_bigint(const std::vector<Token> &postfix) {
           throw std::runtime_error("Insufficient operands for unary -");
         bigint a = safe_pop_bigint(stk);
         stk.push(-a);
+      } else if (token.value == ",") {
+        // Comma is just a separator, do nothing
       } else {
         // Binary functions
         if (token.value == "C") {
@@ -445,9 +464,9 @@ bigint eval_postfix_bigint(const std::vector<Token> &postfix) {
         } else if (token.value == "powmod") {
           if (stk.size() < 3)
             throw std::runtime_error("Insufficient operands for powmod");
-          bigint a = safe_pop_bigint(stk);
-          bigint pow = safe_pop_bigint(stk);
           bigint mod = safe_pop_bigint(stk);
+          bigint pow = safe_pop_bigint(stk);
+          bigint a = safe_pop_bigint(stk);
           stk.push(pow_mod(a, pow, mod));
         } else if (token.value == "lcm") {
           if (stk.size() < 2)
@@ -490,13 +509,15 @@ bigint eval_postfix_bigint(const std::vector<Token> &postfix) {
   return stk.top();
 }
 
-double evaluate_double_expression(const std::string &expression) {
+//evaluate float expressions
+double eval_do(const std::string &expression) {
   auto tokens = tokenize(expression);
   auto postfix = to_postfix(tokens);
   return eval_postfix_double(postfix);
 }
 
-bigint evaluate_bigint_expression(const std::string &expression) {
+//evaluate bigint/int expressions
+bigint eval_bi(const std::string &expression) {
   auto tokens = tokenize(expression);
   auto postfix = to_postfix(tokens);
   return eval_postfix_bigint(postfix);
@@ -594,18 +615,9 @@ EvalVersion analyze_and_fix(std::string &input) {
 
   // Try to fix brackets by adding from left or right
   if (bracket_index > 0) {
-    while (bracket_index) {
-      input += ')';
-      bracket_index--;
-    }
+    input.append(bracket_index, ')');
   } else if (bracket_index < 0) {
-    bracket_index = abs(bracket_index);
-    std::string temp;
-    while (bracket_index) {
-      temp += '(';
-      bracket_index--;
-    }
-    input = temp + input;
+    input.insert(0, -bracket_index, '(');
   }
 
   // Return colon_mode command
@@ -704,7 +716,9 @@ enum CommandType {
   CMD_VARS
 };
 
-// Enter calculator mode. Simple API for external use
+
+
+// Enter calculator mode. Terminal 
 void calculator_mode() {
   show_welcome();
   bool eval_state = true;
@@ -853,20 +867,20 @@ void calculator_mode() {
             continue;
           }
 
-          double result = evaluate_double_expression(var_expr);
+          double result = eval_do(var_expr);
           assign_variable_double(var_name, result);
           double_answer = result;
           if (loud)
             std::cout << var_name << " = " << result << "\n";
         } else {
-          double_answer = evaluate_double_expression(text_input);
+          double_answer = eval_do(text_input);
           std::cout << double_answer << "\n";
         }
       } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
       }
     }
-  elsehttps: // github.com/balloffur/expression_evaluator
+  else
   {
     try {
       std::string var_name, var_expr;
@@ -880,7 +894,7 @@ void calculator_mode() {
           continue;
         }
 
-        bigint result = evaluate_bigint_expression(var_expr);
+        bigint result = eval_bi(var_expr);
         assign_variable_bigint(var_name, result);
         bigint_answer = result;
         if (bigint_approximate) {
@@ -893,10 +907,10 @@ void calculator_mode() {
         }
       } else {
         if (bigint_approximate) {
-          bigint_answer = evaluate_bigint_expression(text_input);
+          bigint_answer = eval_bi(text_input);
           std::cout << aproximation_print(bigint_answer) << "\n";
         } else {
-          bigint_answer = evaluate_bigint_expression(text_input);
+          bigint_answer = eval_bi(text_input);
           std::cout << bigint_answer << "\n";
         }
       }

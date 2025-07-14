@@ -657,6 +657,75 @@ void test_properties() {
     assert(!d.even());
 }
 
+void test_literals() {
+    VERBOSE_PRINT("Testing user-defined literals...");
+    
+    // Test _bi literal with numbers
+    auto a = 123_bi;
+    assert(a == bigint(123));
+    
+    auto b = 0_bi;
+    assert(b.isZero());
+    
+    auto c = 999999999999999999_bi;
+    assert(c.to_string() == "999999999999999999");
+    
+    // Test _bi literal with strings
+    auto d = "123456789012345678901234567890"_bi;
+    assert(d.to_string() == "123456789012345678901234567890");
+    
+    auto e = "0"_bi;
+    assert(e.isZero());
+    
+    // Test operations with literals
+    auto sum = 100_bi + 200_bi;
+    assert(sum == 300_bi);
+    
+    auto product = 123_bi * 456_bi;
+    assert(product == bigint(123) * bigint(456));
+    
+    VERBOSE_PRINT("User-defined literals test passed");
+}
+
+void test_base_conversion() {
+    VERBOSE_PRINT("Testing base conversion...");
+    
+    // Test to_base function
+    bigint num(255);
+    assert(to_base(num, 2) == "11111111");
+    assert(to_base(num, 8) == "377");
+    assert(to_base(num, 16) == "FF");
+    
+    bigint zero(0);
+    assert(to_base(zero, 2) == "0");
+    assert(to_base(zero, 16) == "0");
+    
+    bigint large("1000");
+    assert(to_base(large, 2) == "1111101000");
+    assert(to_base(large, 16) == "3E8");
+    
+    // Test negative numbers
+    bigint neg(-255);
+    assert(to_base(neg, 16) == "-FF");
+    assert(to_base(neg, 2) == "-11111111");
+    
+    // Test various bases
+    bigint test_num("12345");
+    for (int base = 2; base <= 36; base++) {
+        std::string converted = to_base(test_num, base);
+        VERBOSE_PRINT("12345 in base " + std::to_string(base) + ": " + converted);
+    }
+    
+    // Test large numbers in different bases
+    bigint large_test("999999999999999999999");
+    std::string binary = to_base(large_test, 2);
+    std::string hex = to_base(large_test, 16);
+    VERBOSE_PRINT("Large number in binary: " + binary.substr(0, 20) + "...");
+    VERBOSE_PRINT("Large number in hex: " + hex);
+    
+    VERBOSE_PRINT("Base conversion test passed");
+}
+
 void test_utilities() {
     VERBOSE_PRINT("Testing utility functions...");
     bigint a("98765432109876543210");
@@ -900,6 +969,12 @@ int main(int argc, char* argv[]) {
         
         test_properties();
         std::cout << "(^_^) Property tests passed\n";
+        
+        test_literals();
+        std::cout << "(^_^) User-defined literals tests passed\n";
+        
+        test_base_conversion();
+        std::cout << "(^_^) Base conversion tests passed\n";
         
         test_utilities();
         std::cout << "(^_^) Utility function tests passed\n";

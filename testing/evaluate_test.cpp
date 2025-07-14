@@ -1,17 +1,20 @@
 #include <iostream>
+#include <fstream>
 #include <cassert>
 #include <stdexcept>
 #include <chrono>
 #include <vector>
 #include <string>
 #include <cmath>
-#include <map>
-#include <sstream>
+#include <iomanip>
 #include "../bigint.h"
+#include "../evaluate.hpp"
 
 bool test_exceptions = true;
 bool verbose_mode = false;
 bool benchmark_mode = false;
+bool file_output = false;
+std::ofstream output_file;
 
 #define ASSERT_EXCEPTION(code, exception_type) \
     if (test_exceptions) { \
@@ -21,7 +24,18 @@ bool benchmark_mode = false;
         assert(caught); \
     }
 
-#define VERBOSE_PRINT(msg) if (verbose_mode) std::cout << "  " << msg << std::endl;
+#define PRINT(msg) \
+    do { \
+        std::cout << msg << std::endl; \
+        if (file_output && output_file.is_open()) { \
+            output_file << msg << std::endl; \
+        } \
+    } while(0)
+
+#define VERBOSE_PRINT(msg) \
+    if (verbose_mode) { \
+        PRINT("  " << msg); \
+    }
 
 class Timer {
 public:
@@ -30,7 +44,7 @@ public:
     double elapsed() {
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-        return duration.count() / 1000.0; // milliseconds
+        return duration.count() / 1000.0;
     }
     
     void reset() {
@@ -41,263 +55,399 @@ private:
     std::chrono::high_resolution_clock::time_point start_time;
 };
 
-// Simple expression evaluator for testing
-bigint evaluate_simple_expression(const std::string& expr) {
-    // Very basic evaluator - just for testing purposes
-    // Supports: number, +number, -number, number+number, number-number, number*number
-    
-    if (expr.empty()) return bigint(0);
-    
-    // Find operators
-    size_t plus_pos = expr.find('+', 1); // Skip first character for negative numbers
-    size_t minus_pos = expr.find('-', 1);
-    size_t mult_pos = expr.find('*');
-    
-    if (plus_pos != std::string::npos) {
-        std::string left = expr.substr(0, plus_pos);
-        std::string right = expr.substr(plus_pos + 1);
-        return bigint(left) + bigint(right);
-    }
-    
-    if (minus_pos != std::string::npos) {
-        std::string left = expr.substr(0, minus_pos);
-        std::string right = expr.substr(minus_pos + 1);
-        return bigint(left) - bigint(right);
-    }
-    
-    if (mult_pos != std::string::npos) {
-        std::string left = expr.substr(0, mult_pos);
-        std::string right = expr.substr(mult_pos + 1);
-        return bigint(left) * bigint(right);
-    }
-    
-    // Single number
-    return bigint(expr);
-}
-
-void test_basic_evaluation() {
-    VERBOSE_PRINT("Testing basic expression evaluation...");
-    
-    // Single numbers
-    assert(evaluate_simple_expression("123") == bigint(123));
-    assert(evaluate_simple_expression("-456") == bigint(-456));
-    assert(evaluate_simple_expression("0") == bigint(0));
+void test_eval_bi_basic_arithmetic() {
+    VERBOSE_PRINT("Testing eval_bi basic arithmetic...");
     
     // Addition
-    assert(evaluate_simple_expression("123+456") == bigint(579));
-    assert(evaluate_simple_expression("1000+2000") == bigint(3000));
+    assert(evl::eval_bi("2+3") == bigint(5));
+    assert(evl::eval_bi("100+200") == bigint(300));
+    assert(evl::eval_bi("0+0") == bigint(0));
+    assert(evl::eval_bi("-5+10") == bigint(5));
+    assert(evl::eval_bi("123456789+987654321") == bigint("1111111110"));
     
     // Subtraction
-    assert(evaluate_simple_expression("1000-300") == bigint(700));
-    assert(evaluate_simple_expression("100-200") == bigint(-100));
+    assert(evl::eval_bi("10-4") == bigint(6));
+    assert(evl::eval_bi("100-200") == bigint(-100));
+    assert(evl::eval_bi("0-5") == bigint(-5));
+    assert(evl::eval_bi("1000000000-1") == bigint(999999999));
     
     // Multiplication
-    assert(evaluate_simple_expression("123*456") == bigint(56088));
-    assert(evaluate_simple_expression("1000*1000") == bigint(1000000));
+    assert(evl::eval_bi("7*8") == bigint(56));
+    assert(evl::eval_bi("123*456") == bigint(56088));
+    assert(evl::eval_bi("0*999") == bigint(0));
+    assert(evl::eval_bi("-5*6") == bigint(-30));
+    assert(evl::eval_bi("999999*999999") == bigint("999998000001"));
     
-    VERBOSE_PRINT("Basic evaluation tests passed");
+    // Division
+    assert(evl::eval_bi("15/3") == bigint(5));
+    assert(evl::eval_bi("100/10") == bigint(10));
+    assert(evl::eval_bi("7/2") == bigint(3));
+    assert(evl::eval_bi("1000000/1000") == bigint(1000));
+    
+    // Modulo
+    assert(evl::eval_bi("17%5") == bigint(2));
+    assert(evl::eval_bi("100%7") == bigint(2));
+    assert(evl::eval_bi("1000%13") == bigint(12));
+    
+    VERBOSE_PRINT("Basic arithmetic tests passed");
 }
 
-void test_large_number_evaluation() {
-    VERBOSE_PRINT("Testing large number evaluation...");
+void test_eval_bi_power_operations() {
+    VERBOSE_PRINT("Testing eval_bi power operations...");
     
-    // Large number operations
-    std::string large1 = "123456789012345678901234567890";
-    std::string large2 = "987654321098765432109876543210";
+    assert(evl::eval_bi("2^3") == bigint(8));
+    assert(evl::eval_bi("2^10") == bigint(1024));
+    assert(evl::eval_bi("3^4") == bigint(81));
+    assert(evl::eval_bi("5^0") == bigint(1));
+    assert(evl::eval_bi("1^100") == bigint(1));
+    assert(evl::eval_bi("10^6") == bigint(1000000));
     
-    bigint result_add = evaluate_simple_expression(large1 + "+" + large2);
-    bigint expected_add = bigint(large1) + bigint(large2);
-    assert(result_add == expected_add);
-    VERBOSE_PRINT("Large addition: " + result_add.to_string().substr(0, 20) + "...");
-    
-    bigint result_sub = evaluate_simple_expression(large2 + "-" + large1);
-    bigint expected_sub = bigint(large2) - bigint(large1);
-    assert(result_sub == expected_sub);
-    VERBOSE_PRINT("Large subtraction: " + result_sub.to_string().substr(0, 20) + "...");
-    
-    // Large multiplication
-    std::string med1 = "123456789";
-    std::string med2 = "987654321";
-    bigint result_mult = evaluate_simple_expression(med1 + "*" + med2);
-    bigint expected_mult = bigint(med1) * bigint(med2);
-    assert(result_mult == expected_mult);
-    VERBOSE_PRINT("Large multiplication: " + result_mult.to_string());
+    VERBOSE_PRINT("Power operation tests passed");
 }
 
-void test_edge_cases() {
-    VERBOSE_PRINT("Testing edge cases...");
+void test_eval_bi_factorial() {
+    VERBOSE_PRINT("Testing eval_bi factorial...");
     
-    // Zero operations
-    assert(evaluate_simple_expression("0+0") == bigint(0));
-    assert(evaluate_simple_expression("0-0") == bigint(0));
-    assert(evaluate_simple_expression("0*123") == bigint(0));
-    assert(evaluate_simple_expression("123*0") == bigint(0));
+    assert(evl::eval_bi("0!") == bigint(1));
+    assert(evl::eval_bi("1!") == bigint(1));
+    assert(evl::eval_bi("5!") == bigint(120));
+    assert(evl::eval_bi("6!") == bigint(720));
+    assert(evl::eval_bi("10!") == bigint(3628800));
     
-    // Operations with 1
-    assert(evaluate_simple_expression("123*1") == bigint(123));
-    assert(evaluate_simple_expression("1*456") == bigint(456));
-    
-    // Negative number operations
-    assert(evaluate_simple_expression("-123+456") == bigint(333));
-    assert(evaluate_simple_expression("123+-456") == bigint(-333));
-    
-    VERBOSE_PRINT("Edge case tests passed");
+    VERBOSE_PRINT("Factorial tests passed");
 }
 
-void test_factorial_expressions() {
-    VERBOSE_PRINT("Testing factorial-like expressions...");
+void test_eval_bi_unary_operations() {
+    VERBOSE_PRINT("Testing eval_bi unary operations...");
     
-    // Simulate factorial calculations using multiplication chains
-    bigint fact5 = bigint(1);
-    for (int i = 1; i <= 5; i++) {
-        std::string expr = fact5.to_string() + "*" + std::to_string(i);
-        fact5 = evaluate_simple_expression(expr);
-    }
-    assert(fact5 == bigint(120)); // 5!
-    VERBOSE_PRINT("Factorial 5! = " + fact5.to_string());
+    // Unary minus
+    assert(evl::eval_bi("-5") == bigint(-5));
+    assert(evl::eval_bi("-(3+2)") == bigint(-5));
+    assert(evl::eval_bi("-(-10)") == bigint(10));
     
-    // Larger factorial
-    bigint fact10 = bigint(1);
-    for (int i = 1; i <= 10; i++) {
-        std::string expr = fact10.to_string() + "*" + std::to_string(i);
-        fact10 = evaluate_simple_expression(expr);
-    }
-    assert(fact10 == bigint(3628800)); // 10!
-    VERBOSE_PRINT("Factorial 10! = " + fact10.to_string());
+    VERBOSE_PRINT("Unary operation tests passed");
 }
 
-void test_power_expressions() {
-    VERBOSE_PRINT("Testing power-like expressions...");
+void test_eval_bi_functions() {
+    VERBOSE_PRINT("Testing eval_bi functions...");
     
-    // Simulate 2^10 using repeated multiplication
-    bigint power = bigint(1);
-    for (int i = 0; i < 10; i++) {
-        std::string expr = power.to_string() + "*2";
-        power = evaluate_simple_expression(expr);
-    }
-    assert(power == bigint(1024)); // 2^10
-    VERBOSE_PRINT("Power 2^10 = " + power.to_string());
+    // Absolute value
+    assert(evl::eval_bi("abs(-10)") == bigint(10));
+    assert(evl::eval_bi("abs(15)") == bigint(15));
+    assert(evl::eval_bi("abs(0)") == bigint(0));
     
-    // Simulate 3^5
-    bigint power3 = bigint(1);
-    for (int i = 0; i < 5; i++) {
-        std::string expr = power3.to_string() + "*3";
-        power3 = evaluate_simple_expression(expr);
-    }
-    assert(power3 == bigint(243)); // 3^5
-    VERBOSE_PRINT("Power 3^5 = " + power3.to_string());
+    // Square
+    assert(evl::eval_bi("sqr(5)") == bigint(25));
+    assert(evl::eval_bi("sqr(10)") == bigint(100));
+    assert(evl::eval_bi("sqr(0)") == bigint(0));
+    
+    // Square root
+    assert(evl::eval_bi("sqrt(16)") == bigint(4));
+    assert(evl::eval_bi("sqrt(25)") == bigint(5));
+    assert(evl::eval_bi("sqrt(100)") == bigint(10));
+    
+    // GCD
+    assert(evl::eval_bi("gcd(12,8)") == bigint(4));
+    assert(evl::eval_bi("gcd(15,25)") == bigint(5));
+    assert(evl::eval_bi("gcd(17,19)") == bigint(1));
+    
+    // LCM
+    assert(evl::eval_bi("lcm(4,6)") == bigint(12));
+    assert(evl::eval_bi("lcm(12,18)") == bigint(36));
+    assert(evl::eval_bi("lcm(7,11)") == bigint(77));
+    
+    // Fibonacci
+    assert(evl::eval_bi("fib(0)") == bigint(0));
+    assert(evl::eval_bi("fib(1)") == bigint(1));
+    assert(evl::eval_bi("fib(10)") == bigint(55));
+    assert(evl::eval_bi("fib(15)") == bigint(610));
+    
+    VERBOSE_PRINT("Function tests passed");
 }
 
-void test_fibonacci_expressions() {
-    VERBOSE_PRINT("Testing Fibonacci-like expressions...");
+void test_eval_bi_complex_expressions() {
+    VERBOSE_PRINT("Testing eval_bi complex expressions...");
     
-    // Calculate Fibonacci numbers using addition
-    bigint fib_prev = bigint(0);
-    bigint fib_curr = bigint(1);
+    // Operator precedence
+    assert(evl::eval_bi("2+3*4") == bigint(14));
+    assert(evl::eval_bi("(2+3)*4") == bigint(20));
+    assert(evl::eval_bi("2^3+1") == bigint(9));
+    assert(evl::eval_bi("2+3^2") == bigint(11));
     
-    for (int i = 2; i <= 10; i++) {
-        std::string expr = fib_prev.to_string() + "+" + fib_curr.to_string();
-        bigint fib_next = evaluate_simple_expression(expr);
-        fib_prev = fib_curr;
-        fib_curr = fib_next;
-    }
+    // Nested expressions
+    assert(evl::eval_bi("((2+3)*4-1)^2") == bigint(361));
+    assert(evl::eval_bi("2^(3+1)") == bigint(16));
+    assert(evl::eval_bi("(5!)/(3!)") == bigint(20));
     
-    // F(10) = 55
-    assert(fib_curr == bigint(55));
-    VERBOSE_PRINT("Fibonacci F(10) = " + fib_curr.to_string());
+    // Mixed operations
+    assert(evl::eval_bi("3!+4!") == bigint(30));
+    assert(evl::eval_bi("5!-4!") == bigint(96));
+    assert(evl::eval_bi("gcd(48,18)*lcm(4,6)") == bigint(72));
     
-    // Continue to F(20)
-    for (int i = 11; i <= 20; i++) {
-        std::string expr = fib_prev.to_string() + "+" + fib_curr.to_string();
-        bigint fib_next = evaluate_simple_expression(expr);
-        fib_prev = fib_curr;
-        fib_curr = fib_next;
-    }
-    
-    // F(20) = 6765
-    assert(fib_curr == bigint(6765));
-    VERBOSE_PRINT("Fibonacci F(20) = " + fib_curr.to_string());
+    VERBOSE_PRINT("Complex expression tests passed");
 }
 
-void run_comprehensive_benchmarks() {
-    std::cout << "\n=== EXPRESSION EVALUATION BENCHMARKS ===\n";
+void test_eval_do_basic_arithmetic() {
+    VERBOSE_PRINT("Testing eval_do basic arithmetic...");
     
-    // Basic operation benchmarks
-    {
-        Timer timer;
-        for (int i = 0; i < 10000; i++) {
-            bigint result = evaluate_simple_expression("123+456");
-            (void)result;
-        }
-        std::cout << "Simple addition (123+456): " << timer.elapsed() << " ms for 10000 operations\n";
+    const double EPSILON = 1e-10;
+    
+    // Addition
+    assert(std::abs(evl::eval_do("2.5+3.7") - 6.2) < EPSILON);
+    assert(std::abs(evl::eval_do("0.1+0.2") - 0.3) < 1e-9);
+    assert(std::abs(evl::eval_do("-5.5+10.3") - 4.8) < EPSILON);
+    
+    // Subtraction
+    assert(std::abs(evl::eval_do("10.0-4.5") - 5.5) < EPSILON);
+    assert(std::abs(evl::eval_do("3.14-2.14") - 1.0) < EPSILON);
+    
+    // Multiplication
+    assert(std::abs(evl::eval_do("2.5*4.0") - 10.0) < EPSILON);
+    assert(std::abs(evl::eval_do("3.14*2") - 6.28) < EPSILON);
+    
+    // Division
+    assert(std::abs(evl::eval_do("15.0/3.0") - 5.0) < EPSILON);
+    assert(std::abs(evl::eval_do("22.0/7.0") - 3.142857142857143) < 1e-12);
+    
+    // Modulo
+    assert(std::abs(evl::eval_do("5.5%2.0") - 1.5) < EPSILON);
+    
+    VERBOSE_PRINT("Basic arithmetic tests passed");
+}
+
+void test_eval_do_trigonometric() {
+    VERBOSE_PRINT("Testing eval_do trigonometric functions...");
+    
+    const double EPSILON = 1e-10;
+    
+    // Basic trig functions
+    assert(std::abs(evl::eval_do("sin(0)") - 0.0) < EPSILON);
+    assert(std::abs(evl::eval_do("cos(0)") - 1.0) < EPSILON);
+    assert(std::abs(evl::eval_do("tan(0)") - 0.0) < EPSILON);
+    
+    // Pi-based values
+    assert(std::abs(evl::eval_do("sin(pi/2)") - 1.0) < EPSILON);
+    assert(std::abs(evl::eval_do("cos(pi)") - (-1.0)) < EPSILON);
+    
+    // Inverse trig functions
+    assert(std::abs(evl::eval_do("arcsin(0)") - 0.0) < EPSILON);
+    assert(std::abs(evl::eval_do("arccos(1)") - 0.0) < EPSILON);
+    assert(std::abs(evl::eval_do("arctan(0)") - 0.0) < EPSILON);
+    
+    VERBOSE_PRINT("Trigonometric function tests passed");
+}
+
+void test_eval_do_logarithmic() {
+    VERBOSE_PRINT("Testing eval_do logarithmic functions...");
+    
+    const double EPSILON = 1e-10;
+    
+    // Natural logarithm
+    assert(std::abs(evl::eval_do("ln(1)") - 0.0) < EPSILON);
+    assert(std::abs(evl::eval_do("ln(e)") - 1.0) < EPSILON);
+    
+    // Base-10 logarithm
+    assert(std::abs(evl::eval_do("lg(1)") - 0.0) < EPSILON);
+    assert(std::abs(evl::eval_do("lg(10)") - 1.0) < EPSILON);
+    assert(std::abs(evl::eval_do("lg(100)") - 2.0) < EPSILON);
+    
+    // Custom base logarithm
+    assert(std::abs(evl::eval_do("log(2,8)") - 3.0) < EPSILON);
+    assert(std::abs(evl::eval_do("log(3,27)") - 3.0) < EPSILON);
+    
+    VERBOSE_PRINT("Logarithmic function tests passed");
+}
+
+void test_eval_do_power_and_roots() {
+    VERBOSE_PRINT("Testing eval_do power and root functions...");
+    
+    const double EPSILON = 1e-10;
+    
+    // Power operations
+    assert(std::abs(evl::eval_do("2^3") - 8.0) < EPSILON);
+    assert(std::abs(evl::eval_do("2.5^2") - 6.25) < EPSILON);
+    assert(std::abs(evl::eval_do("4^0.5") - 2.0) < EPSILON);
+    
+    // Square root
+    assert(std::abs(evl::eval_do("sqrt(16)") - 4.0) < EPSILON);
+    assert(std::abs(evl::eval_do("sqrt(2)") - 1.4142135623730951) < EPSILON);
+    assert(std::abs(evl::eval_do("sqrt(0.25)") - 0.5) < EPSILON);
+    
+    VERBOSE_PRINT("Power and root function tests passed");
+}
+
+void test_eval_do_constants() {
+    VERBOSE_PRINT("Testing eval_do mathematical constants...");
+    
+    const double EPSILON = 1e-10;
+    
+    // Pi
+    assert(std::abs(evl::eval_do("pi") - 3.141592653589793) < EPSILON);
+    
+    // Euler's number
+    assert(std::abs(evl::eval_do("e") - 2.718281828459045) < EPSILON);
+    
+    // Golden ratio
+    assert(std::abs(evl::eval_do("phi") - 1.618033988749895) < EPSILON);
+    
+    // Constants in expressions
+    assert(std::abs(evl::eval_do("2*pi") - 6.283185307179586) < EPSILON);
+    assert(std::abs(evl::eval_do("e^2") - 7.3890560989306504) < EPSILON);
+    
+    VERBOSE_PRINT("Mathematical constant tests passed");
+}
+
+void test_eval_do_complex_expressions() {
+    VERBOSE_PRINT("Testing eval_do complex expressions...");
+    
+    const double EPSILON = 1e-10;
+    
+    // Mixed operations
+    assert(std::abs(evl::eval_do("sqrt(2^2+3^2)") - 3.605551275463989) < EPSILON);
+    assert(std::abs(evl::eval_do("sin(pi/4)^2+cos(pi/4)^2") - 1.0) < EPSILON);
+    assert(std::abs(evl::eval_do("ln(e^3)") - 3.0) < EPSILON);
+    
+    // Nested functions
+    assert(std::abs(evl::eval_do("sqrt(abs(-16))") - 4.0) < EPSILON);
+    assert(std::abs(evl::eval_do("sin(arcsin(0.5))") - 0.5) < EPSILON);
+    
+    VERBOSE_PRINT("Complex expression tests passed");
+}
+
+void test_error_handling() {
+    VERBOSE_PRINT("Testing error handling...");
+    
+    if (test_exceptions) {
+        // Division by zero
+        ASSERT_EXCEPTION(evl::eval_bi("5/0"), std::runtime_error);
+        ASSERT_EXCEPTION(evl::eval_do("5.0/0.0"), std::runtime_error);
+        
+        // Invalid expressions
+        ASSERT_EXCEPTION(evl::eval_bi("2+"), std::runtime_error);
+        ASSERT_EXCEPTION(evl::eval_bi("*3"), std::runtime_error);
+        ASSERT_EXCEPTION(evl::eval_bi("((2+3)"), std::runtime_error);
+        
+        // Domain errors
+        ASSERT_EXCEPTION(evl::eval_do("sqrt(-1)"), std::runtime_error);
+        ASSERT_EXCEPTION(evl::eval_do("ln(0)"), std::runtime_error);
+        ASSERT_EXCEPTION(evl::eval_do("arcsin(2)"), std::runtime_error);
+        ASSERT_EXCEPTION(evl::eval_do("arccos(-2)"), std::runtime_error);
+        
+        // Invalid functions
+        ASSERT_EXCEPTION(evl::eval_bi("unknown_func(5)"), std::runtime_error);
+        ASSERT_EXCEPTION(evl::eval_do("invalid(3.14)"), std::runtime_error);
     }
     
-    {
-        Timer timer;
-        for (int i = 0; i < 10000; i++) {
-            bigint result = evaluate_simple_expression("123*456");
-            (void)result;
-        }
-        std::cout << "Simple multiplication (123*456): " << timer.elapsed() << " ms for 10000 operations\n";
+    VERBOSE_PRINT("Error handling tests passed");
+}
+
+void test_large_numbers() {
+    VERBOSE_PRINT("Testing large number operations...");
+    
+    // Large factorials
+    bigint fact20 = evl::eval_bi("20!");
+    assert(fact20.number_of_digits() == 19);
+    
+    bigint fact50 = evl::eval_bi("50!");
+    assert(fact50.number_of_digits() == 65);
+    
+    // Large powers
+    bigint pow2_100 = evl::eval_bi("2^100");
+    assert(pow2_100.number_of_digits() == 31);
+    
+    bigint pow10_50 = evl::eval_bi("10^50");
+    assert(pow10_50.number_of_digits() == 51);
+    
+    // Large Fibonacci numbers
+    bigint fib50 = evl::eval_bi("fib(50)");
+    assert(fib50.number_of_digits() == 11);
+    
+    VERBOSE_PRINT("Large number tests passed");
+}
+
+void run_benchmarks() {
+    PRINT("\n=== EVALUATION BENCHMARKS ===");
+    
+    Timer timer;
+    const int iterations = 10000;
+    
+    // Basic arithmetic benchmarks
+    timer.reset();
+    for (int i = 0; i < iterations; i++) {
+        evl::eval_bi("123+456");
     }
+    PRINT("eval_bi addition: " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for " << iterations << " operations");
+    
+    timer.reset();
+    for (int i = 0; i < iterations; i++) {
+        evl::eval_do("123.456+789.012");
+    }
+    PRINT("eval_do addition: " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for " << iterations << " operations");
+    
+    // Multiplication benchmarks
+    timer.reset();
+    for (int i = 0; i < iterations; i++) {
+        evl::eval_bi("123*456");
+    }
+    PRINT("eval_bi multiplication: " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for " << iterations << " operations");
+    
+    timer.reset();
+    for (int i = 0; i < iterations; i++) {
+        evl::eval_do("123.456*789.012");
+    }
+    PRINT("eval_do multiplication: " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for " << iterations << " operations");
+    
+    // Power benchmarks
+    timer.reset();
+    for (int i = 0; i < 1000; i++) {
+        evl::eval_bi("2^20");
+    }
+    PRINT("eval_bi power (2^20): " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for 1000 operations");
+    
+    timer.reset();
+    for (int i = 0; i < 1000; i++) {
+        evl::eval_do("2.0^20.0");
+    }
+    PRINT("eval_do power (2^20): " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for 1000 operations");
+    
+    // Function benchmarks
+    timer.reset();
+    for (int i = 0; i < 1000; i++) {
+        evl::eval_bi("10!");
+    }
+    PRINT("eval_bi factorial (10!): " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for 1000 operations");
+    
+    timer.reset();
+    for (int i = 0; i < iterations; i++) {
+        evl::eval_do("sin(1.0)");
+    }
+    PRINT("eval_do sin function: " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for " << iterations << " operations");
+    
+    // Complex expression benchmarks
+    timer.reset();
+    for (int i = 0; i < 1000; i++) {
+        evl::eval_bi("(2+3)*4^2-1");
+    }
+    PRINT("eval_bi complex expression: " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for 1000 operations");
+    
+    timer.reset();
+    for (int i = 0; i < 1000; i++) {
+        evl::eval_do("sqrt(sin(pi/4)^2+cos(pi/4)^2)");
+    }
+    PRINT("eval_do complex expression: " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms for 1000 operations");
     
     // Large number benchmarks
-    {
-        Timer timer;
-        std::string large_expr = "123456789012345678901234567890+987654321098765432109876543210";
-        for (int i = 0; i < 1000; i++) {
-            bigint result = evaluate_simple_expression(large_expr);
-            (void)result;
-        }
-        std::cout << "Large addition: " << timer.elapsed() << " ms for 1000 operations\n";
-    }
+    timer.reset();
+    evl::eval_bi("100!");
+    PRINT("eval_bi large factorial (100!): " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms");
     
-    {
-        Timer timer;
-        std::string mult_expr = "123456789*987654321";
-        for (int i = 0; i < 1000; i++) {
-            bigint result = evaluate_simple_expression(mult_expr);
-            (void)result;
-        }
-        std::cout << "Medium multiplication: " << timer.elapsed() << " ms for 1000 operations\n";
-    }
+    timer.reset();
+    evl::eval_bi("2^1000");
+    PRINT("eval_bi large power (2^1000): " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms");
     
-    // Factorial benchmark
-    {
-        Timer timer;
-        bigint fact = bigint(1);
-        for (int i = 1; i <= 100; i++) {
-            std::string expr = fact.to_string() + "*" + std::to_string(i);
-            fact = evaluate_simple_expression(expr);
-        }
-        std::cout << "Factorial 100!: " << timer.elapsed() << " ms (result has " << fact.number_of_digits() << " digits)\n";
-    }
-    
-    // Fibonacci benchmark
-    {
-        Timer timer;
-        bigint fib_prev = bigint(0);
-        bigint fib_curr = bigint(1);
-        
-        for (int i = 2; i <= 1000; i++) {
-            std::string expr = fib_prev.to_string() + "+" + fib_curr.to_string();
-            bigint fib_next = evaluate_simple_expression(expr);
-            fib_prev = fib_curr;
-            fib_curr = fib_next;
-        }
-        std::cout << "Fibonacci F(1000): " << timer.elapsed() << " ms (result has " << fib_curr.number_of_digits() << " digits)\n";
-    }
-    
-    // Power benchmark
-    {
-        Timer timer;
-        bigint power = bigint(1);
-        for (int i = 0; i < 100; i++) {
-            std::string expr = power.to_string() + "*2";
-            power = evaluate_simple_expression(expr);
-        }
-        std::cout << "Power 2^100: " << timer.elapsed() << " ms (result has " << power.number_of_digits() << " digits)\n";
-    }
+    timer.reset();
+    evl::eval_bi("fib(100)");
+    PRINT("eval_bi large Fibonacci (fib(100)): " << std::fixed << std::setprecision(3) << timer.elapsed() << " ms");
 }
 
 int main(int argc, char* argv[]) {
@@ -310,62 +460,110 @@ int main(int argc, char* argv[]) {
             verbose_mode = true;
         } else if (arg == "--benchmark" || arg == "-b") {
             benchmark_mode = true;
+        } else if (arg == "--file" || arg == "-f") {
+            file_output = true;
         } else if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: " << argv[0] << " [options]\n";
             std::cout << "Options:\n";
             std::cout << "  --no-exceptions    Skip exception testing\n";
             std::cout << "  --verbose, -v      Enable verbose output\n";
             std::cout << "  --benchmark, -b    Enable benchmark mode\n";
+            std::cout << "  --file, -f         Output to file\n";
             std::cout << "  --help, -h         Show this help\n";
             return 0;
         }
     }
     
-    std::cout << "=== EXPRESSION EVALUATOR TEST SUITE ===\n";
-    std::cout << "Configuration:\n";
-    std::cout << "  Exception testing: " << (test_exceptions ? "ON" : "OFF") << "\n";
-    std::cout << "  Verbose mode: " << (verbose_mode ? "ON" : "OFF") << "\n";
-    std::cout << "  Benchmark mode: " << (benchmark_mode ? "ON" : "OFF") << "\n\n";
+    if (file_output) {
+        output_file.open("evaluate_test_results.txt");
+        if (!output_file.is_open()) {
+            std::cerr << "Failed to open output file\n";
+            return 1;
+        }
+    }
+    
+    PRINT("=== EXPRESSION EVALUATOR TEST SUITE ===");
+    PRINT("Configuration:");
+    PRINT("  Exception testing: " << (test_exceptions ? "ON" : "OFF"));
+    PRINT("  Verbose mode: " << (verbose_mode ? "ON" : "OFF"));
+    PRINT("  Benchmark mode: " << (benchmark_mode ? "ON" : "OFF"));
+    PRINT("  File output: " << (file_output ? "ON" : "OFF"));
+    PRINT("");
     
     Timer total_timer;
     
     try {
-        std::cout << "Running expression evaluation tests...\n";
+        PRINT("Running expression evaluation tests...");
         
-        test_basic_evaluation();
-        std::cout << "[PASS] Basic evaluation tests passed\n";
+        test_eval_bi_basic_arithmetic();
+        PRINT("[PASS] eval_bi basic arithmetic tests");
         
-        test_large_number_evaluation();
-        std::cout << "[PASS] Large number evaluation tests passed\n";
+        test_eval_bi_power_operations();
+        PRINT("[PASS] eval_bi power operation tests");
         
-        test_edge_cases();
-        std::cout << "[PASS] Edge case tests passed\n";
+        test_eval_bi_factorial();
+        PRINT("[PASS] eval_bi factorial tests");
         
-        test_factorial_expressions();
-        std::cout << "[PASS] Factorial expression tests passed\n";
+        test_eval_bi_unary_operations();
+        PRINT("[PASS] eval_bi unary operation tests");
         
-        test_power_expressions();
-        std::cout << "[PASS] Power expression tests passed\n";
+        test_eval_bi_functions();
+        PRINT("[PASS] eval_bi function tests");
         
-        test_fibonacci_expressions();
-        std::cout << "[PASS] Fibonacci expression tests passed\n";
+        test_eval_bi_complex_expressions();
+        PRINT("[PASS] eval_bi complex expression tests");
+        
+        test_eval_do_basic_arithmetic();
+        PRINT("[PASS] eval_do basic arithmetic tests");
+        
+        test_eval_do_trigonometric();
+        PRINT("[PASS] eval_do trigonometric function tests");
+        
+        test_eval_do_logarithmic();
+        PRINT("[PASS] eval_do logarithmic function tests");
+        
+        test_eval_do_power_and_roots();
+        PRINT("[PASS] eval_do power and root function tests");
+        
+        test_eval_do_constants();
+        PRINT("[PASS] eval_do mathematical constant tests");
+        
+        test_eval_do_complex_expressions();
+        PRINT("[PASS] eval_do complex expression tests");
+        
+        test_error_handling();
+        PRINT("[PASS] Error handling tests");
+        
+        test_large_numbers();
+        PRINT("[PASS] Large number tests");
         
         if (benchmark_mode) {
-            run_comprehensive_benchmarks();
+            run_benchmarks();
         }
         
-        std::cout << "\n=== TEST SUMMARY ===\n";
-        std::cout << "[SUCCESS] All expression evaluator tests passed successfully!\n";
-        std::cout << "Total execution time: " << total_timer.elapsed() << " ms\n";
+        PRINT("\n=== TEST SUMMARY ===");
+        PRINT("[SUCCESS] All expression evaluator tests passed!");
+        PRINT("Total execution time: " << std::fixed << std::setprecision(3) << total_timer.elapsed() << " ms");
+        
+        if (file_output && output_file.is_open()) {
+            output_file.close();
+            PRINT("Results saved to evaluate_test_results.txt");
+        }
         
         return 0;
     }
     catch (const std::exception& e) {
-        std::cout << "[FAIL] Test failed with exception: " << e.what() << std::endl;
+        PRINT("[FAIL] Test failed with exception: " << e.what());
+        if (file_output && output_file.is_open()) {
+            output_file.close();
+        }
         return 1;
     }
     catch (...) {
-        std::cout << "[FAIL] Test failed with unknown exception\n";
+        PRINT("[FAIL] Test failed with unknown exception");
+        if (file_output && output_file.is_open()) {
+            output_file.close();
+        }
         return 1;
     }
 }

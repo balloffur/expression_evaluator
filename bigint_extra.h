@@ -117,7 +117,6 @@ std::uniform_int_distribution<std::mt19937::result_type>
     rand10e9(0, 1000000000); // random int <10^9
 std::uniform_int_distribution<std::mt19937::result_type> random_stop(0, 100); //
 
-static int cur_random = 0;
 
 bigint random_bigint() {
   bigint ans;
@@ -208,6 +207,7 @@ void sieve_mil() {
   }
 }
 
+//Takes a few seconds
 void sieve_int() {
   prime_bound = 2147483646;
   primes.reserve(105151707);
@@ -550,6 +550,7 @@ bigint binomial(bigint n, bigint k) {
   }
   return ans;
 }
+
 // partial permutations
 bigint partperm(int n, int k) {
   bigint ans = 1;

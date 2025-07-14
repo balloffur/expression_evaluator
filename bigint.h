@@ -10,6 +10,12 @@
 #include <utility>
 #include <vector>
 
+// Forward declarations for user-defined literals
+struct bigint;
+bigint operator""_bi(const char* str,std::size_t);
+bigint operator""_bi(const char* str);
+bigint operator""_bi(unsigned long long n);
+
 
 // Easy optimisations are marked with !!
 
@@ -55,6 +61,44 @@ struct bigint {
 
   // Initialize from std::string.
   bigint(const std::string &s) { read(s); }
+
+  int char_to_dig(char a){
+    if(a >= '0' && a <= '9'){
+      return a - '0';
+    } else if (a >= 'A' && a <= 'Z'){
+      return a - 'A' + 10;
+    } else if (a >= 'a' && a <= 'z'){
+      return a - 'a' + 10;
+    } else {
+      throw std::invalid_argument("Invalid character in number string");
+    }
+  }
+
+  // Initialize from std::string, base from [2,36]
+  bigint(const std::string &s, int old_base) : bigint() {
+    if(old_base < 2 || old_base > 36){
+      throw std::invalid_argument("Base must be between 2 and 36");
+    }
+    if(s.empty()) return;
+    
+    int i = 0;
+    bool is_negative = false;
+    if(s[0] == '-'){
+      is_negative = true;
+      i = 1;
+    }
+    
+    for(; i < s.length(); i++){
+      int digit = char_to_dig(s[i]);
+      if(digit >= old_base){
+        throw std::invalid_argument("Invalid digit for base");
+      }
+      *this = *this * old_base + digit;
+    }
+    
+    if(is_negative) sign = -1;
+  }
+
 
   // -------------------- Input / Output --------------------
   void read(const std::string &s) {
@@ -198,39 +242,20 @@ struct bigint {
     return *this;
   }
 
-  // Optimize operators + and - according to move semantics
-  // https://stackoverflow.com/questions/13166079/move-semantics-and-pass-by-rvalue-reference-in-overloaded-arithmetic
-  template <typename L, typename R>
-  typename std::enable_if<std::is_convertible<L, bigint>::value &&
-                              std::is_convertible<R, bigint>::value &&
-                              std::is_lvalue_reference<R &&>::value,
-                          bigint>::type friend
-  operator+(L &&l, R &&r) {
-    bigint result(std::forward<L>(l));
-    result += r;
-    return result;
+  bigint operator+(const bigint& other) const{
+    bigint ans;
+    ans=*this;
+    ans+=other;
+    return ans;
   }
-  template <typename L, typename R>
-  typename std::enable_if<std::is_convertible<L, bigint>::value &&
-                              std::is_convertible<R, bigint>::value &&
-                              std::is_rvalue_reference<R &&>::value,
-                          bigint>::type friend
-  operator+(L &&l, R &&r) {
-    bigint result(std::move(r));
-    result += l;
-    return result;
-  }
-
-  template <typename L, typename R>
-  typename std::enable_if<std::is_convertible<L, bigint>::value &&
-                              std::is_convertible<R, bigint>::value,
-                          bigint>::type friend
-  operator-(L &&l, R &&r) {
-    bigint result(std::forward<L>(l));
-    result -= r;
-    return result;
-  }
-
+  
+  bigint operator-(const bigint& other) const{
+    bigint ans;
+    ans=*this;
+    ans-=other;
+    return ans;
+  }   
+  
   // -------------------- Operators * / % --------------------
   friend std::pair<bigint, bigint> divmod(const bigint &a1, const bigint &b1) {
 
@@ -936,6 +961,28 @@ struct bigint {
   }
 };
 
+std::string to_base(bigint number,int new_base){
+  if(new_base>36 || new_base<2){
+    throw std::invalid_argument("Base must be between 2 and 36");
+  }
+  const char digits[36] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
+if(number.isZero()){
+  return "0";
+}
+bool is_negative=number.isNegative();
+number.sign=1;
+std::string ans;
+while (number.isPositive()){
+  ans+=digits[number%new_base];
+  number/=new_base;
+}
+if(is_negative){
+  ans+='-';
+}
+std::reverse(ans.begin(), ans.end());
+return ans;
+}
+
 // binary gcd
 // if both 0 -- returns 0
 // if one 0 -- returns another
@@ -997,6 +1044,8 @@ bigint sqr_mod(bigint number, const bigint &mod) {
   number = (number * number) % mod;
   return number;
 }
+
+
 bigint abs(bigint a) {
   a.sign = 1;
   return a;
@@ -1077,4 +1126,17 @@ std::string aproximation_print(const bigint &a) {
     ans += "*e" + std::to_string(exponent);
   }
   return ans;
+}
+
+// User-defined literal for bigint
+bigint operator""_bi(const char* str) {
+  return bigint(str);
+}
+
+bigint operator""_bi(const char* str, std::size_t) {
+  return bigint(str);
+}
+
+bigint operator""_bi(unsigned long long n) {
+  return bigint(n);
 }
