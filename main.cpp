@@ -7,9 +7,8 @@
 
 #include "bigint.h"
 #include "bigint_extra.h"
-#include "evaluate.hpp"
 #include "expression.h"
-
+#include "calculator_mode.hpp"
 
 bool primes_int_initialised = false;
 std::string CURRENT_VERSION = "14.07.2025";
